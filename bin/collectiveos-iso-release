@@ -11,21 +11,21 @@ BULD_VERSION="$1"
 
 # Make ISOs
 if [[ $1 != "--no-make" ]]; then
-  echo -e "\e[32mMaking main ISO\e[0m"
-  COLLECTIVEOS_INSTALLER_REF=main collectiveos-iso-make --no-cache --no-boot-offer
+  echo -e "\e[32mMaking master ISO\e[0m"
+  COLLECTIVEOS_INSTALLER_REF=master collectiveos-iso-make --no-cache --no-boot-offer
 else
   echo -e "\e[31mSkipping remaking ISOs\e[0m"
 fi
 
-# Sign and upload main ISO
-latest_main_iso=$(\ls -t "$BUILD_RELEASE_PATH"/*x86_64-main.iso | head -n1)
-release_main_iso="$BUILD_RELEASE_PATH/collectiveos-$BULD_VERSION.iso"
-cp "$latest_main_iso" "$release_main_iso"
+# Sign and upload master ISO
+latest_master_iso=$(\ls -t "$BUILD_RELEASE_PATH"/*x86_64-master.iso | head -n1)
+release_master_iso="$BUILD_RELEASE_PATH/collectiveos-$BULD_VERSION.iso"
+cp "$latest_master_iso" "$release_master_iso"
 
-echo -e "\e[32mSigning main ISO\e[0m"
-collectiveos-iso-sign "$release_main_iso"
+echo -e "\e[32mSigning master ISO\e[0m"
+collectiveos-iso-sign "$release_master_iso"
 
-main_sha=$(sha256sum "$release_main_iso")
-echo -e "\e[32mSHA256 for main ISO: $main_sha\e[0m"
+master_sha=$(sha256sum "$release_master_iso")
+echo -e "\e[32mSHA256 for master ISO: $master_sha\e[0m"
 
-collectiveos-iso-upload "$release_main_iso"
+collectiveos-iso-upload "$release_master_iso"

@@ -32,7 +32,7 @@ cp -r /configs/* $build_cache_dir/
 
 # Determine installer source
 INSTALLER_REPO="${COLLECTIVEOS_INSTALLER_REPO:-gwenphalan/collective-os}"
-INSTALLER_REF="${COLLECTIVEOS_INSTALLER_REF:-main}"
+INSTALLER_REF="${COLLECTIVEOS_INSTALLER_REF:-master}"
 
 # Setup CollectiveOS itself
 INSTALLER_DEST="$build_cache_dir/airootfs/root/collectiveos"

@@ -15,7 +15,7 @@ Run `./bin/collectiveos-iso-make` and the output goes into `./release`. You can 
 You can customize the repositories used during the build process by passing in variables:
 
 - `COLLECTIVEOS_INSTALLER_REPO` - GitHub repository for the installer (default: `gwenphalan/collective-os`)
-- `COLLECTIVEOS_INSTALLER_REF` - Git ref (branch/tag) for the installer (default: `main`)
+- `COLLECTIVEOS_INSTALLER_REF` - Git ref (branch/tag) for the installer (default: `master`)
 
 Example usage:
 ```bash
