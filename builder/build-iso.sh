@@ -12,6 +12,7 @@ done
 # Note that these are packages installed to the Arch container used to build the ISO.
 pacman-key --init
 pacman --noconfirm -Sy archlinux-keyring
+pacman --noconfirm -Syu
 pacman --noconfirm -Sy archiso git sudo base-devel jq grub
 
 # Import Cider Collective key for cidercollective repo before using pacman-online.conf
@@ -55,6 +56,39 @@ if [[ -d /collectiveos ]]; then
   cp -rp /collectiveos "$INSTALLER_DEST"
 else
   git clone -b "$INSTALLER_REF" "https://github.com/$INSTALLER_REPO.git" "$INSTALLER_DEST"
+fi
+
+# Build AUR packages inside the installer repo so they're available to the ISO build
+if [[ -z "${SKIP_LOCAL_AUR_BUILD:-}" ]]; then
+  if [[ -x "$INSTALLER_DEST/scripts/build-local-aur.sh" ]]; then
+    echo "==> Building CollectiveOS AUR packages"
+
+    AUR_BUILD_USER=${AUR_BUILD_USER:-aurbuilder}
+    if ! id -u "$AUR_BUILD_USER" >/dev/null 2>&1; then
+      useradd -m "$AUR_BUILD_USER"
+    fi
+
+    SUDOERS_FILE="/etc/sudoers.d/collectiveos-aur"
+    if [[ ! -f $SUDOERS_FILE ]]; then
+      echo "$AUR_BUILD_USER ALL=(ALL) NOPASSWD: /usr/bin/pacman" >$SUDOERS_FILE
+      chmod 440 $SUDOERS_FILE
+    fi
+
+    chown -R "$AUR_BUILD_USER:$AUR_BUILD_USER" "$INSTALLER_DEST"
+    pushd "$INSTALLER_DEST" >/dev/null
+    if ! runuser -u "$AUR_BUILD_USER" -- ./scripts/build-local-aur.sh; then
+      popd >/dev/null
+      chown -R root:root "$INSTALLER_DEST"
+      echo "ERROR: build-local-aur.sh failed" >&2
+      exit 1
+    fi
+    popd >/dev/null
+    chown -R root:root "$INSTALLER_DEST"
+  else
+    echo "WARNING: build-local-aur.sh not found; skipping local AUR build" >&2
+  fi
+else
+  echo "==> Skipping local AUR build (SKIP_LOCAL_AUR_BUILD set)"
 fi
 
 # Make log uploader available in the ISO too
