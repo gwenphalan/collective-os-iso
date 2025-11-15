@@ -2,10 +2,25 @@
 
 set -e
 
+# Packages that must be supplied by the CollectiveOS repository (built from AUR)
+AUR_PACKAGES=(modrinth-app proton-authenticator-bin proton-pass-bin qt5-remoteobjects)
+declare -A AUR_PACKAGE_SET
+for pkg in "${AUR_PACKAGES[@]}"; do
+  AUR_PACKAGE_SET[$pkg]=1
+done
+
 # Note that these are packages installed to the Arch container used to build the ISO.
 pacman-key --init
 pacman --noconfirm -Sy archlinux-keyring
 pacman --noconfirm -Sy archiso git sudo base-devel jq grub
+
+# Import Cider Collective key for cidercollective repo before using pacman-online.conf
+CIDER_KEY_ID="A0CD6B993438E22634450CDD2A236C3F42A61682"
+if ! pacman-key --list-keys "$CIDER_KEY_ID" >/dev/null 2>&1; then
+  curl -fsSL https://repo.cider.sh/ARCH-GPG-KEY -o /tmp/cider-key.gpg
+  pacman-key --add /tmp/cider-key.gpg
+  pacman-key --lsign-key "$CIDER_KEY_ID"
+fi
 
 # Install omarchy-keyring for package verification during build
 # The [omarchy] repo remains defined in /configs/pacman-online.conf with SigLevel = Optional TrustAll
@@ -81,10 +96,54 @@ all_packages+=($(grep -v '^#' "$INSTALLER_DEST/install/collectiveos-base.package
 all_packages+=($(grep -v '^#' "$INSTALLER_DEST/install/collectiveos-other.packages" | grep -v '^$'))
 all_packages+=($(grep -v '^#' /builder/archinstall.packages | grep -v '^$'))
 
+# Remove packages that must be provided by the installer repo to avoid pacman fetch failures
+if [[ ${#AUR_PACKAGES[@]} -gt 0 ]]; then
+  filtered_packages=()
+  for pkg in "${all_packages[@]}"; do
+    if [[ -z "${AUR_PACKAGE_SET[$pkg]:-}" ]]; then
+      filtered_packages+=("$pkg")
+    fi
+  done
+  all_packages=("${filtered_packages[@]}")
+fi
+
 # Download all the packages to the offline mirror inside the ISO
 mkdir -p /tmp/offlinedb
-pacman --config /configs/pacman-online.conf --noconfirm -Syw "${all_packages[@]}" --cachedir $offline_mirror_dir/ --dbpath /tmp/offlinedb
-repo-add --new "$offline_mirror_dir/offline.db.tar.gz" "$offline_mirror_dir/"*.pkg.tar.zst
+if [[ ${#all_packages[@]} -gt 0 ]]; then
+  pacman --config /configs/pacman-online.conf --noconfirm -Syw "${all_packages[@]}" --cachedir $offline_mirror_dir/ --dbpath /tmp/offlinedb
+fi
+
+# Copy locally supplied packages built by the installer repository
+missing_aur_pkgs=()
+if [[ ${#AUR_PACKAGES[@]} -gt 0 ]]; then
+  LOCAL_AUR_REPO_DIR="$INSTALLER_DEST/repos/local-aur/x86_64"
+  if [[ -d "$LOCAL_AUR_REPO_DIR" ]]; then
+    for pkg in "${AUR_PACKAGES[@]}"; do
+      pkg_glob="$LOCAL_AUR_REPO_DIR/${pkg}-*.pkg.tar.*"
+      if compgen -G "$pkg_glob" >/dev/null; then
+        cp -u $pkg_glob "$offline_mirror_dir/"
+      else
+        missing_aur_pkgs+=("$pkg")
+      fi
+    done
+  else
+    missing_aur_pkgs=("${AUR_PACKAGES[@]}")
+  fi
+fi
+
+if [[ ${#missing_aur_pkgs[@]} -gt 0 ]]; then
+  echo "ERROR: Missing locally built CollectiveOS packages (build stage incomplete): ${missing_aur_pkgs[*]}" >&2
+  exit 1
+fi
+
+shopt -s nullglob
+offline_pkgs=("$offline_mirror_dir"/*.pkg.tar.zst)
+shopt -u nullglob
+if [[ ${#offline_pkgs[@]} -eq 0 ]]; then
+  echo "ERROR: Offline mirror contains no packages" >&2
+  exit 1
+fi
+repo-add --new "$offline_mirror_dir/offline.db.tar.gz" "${offline_pkgs[@]}"
 
 # Create a symlink to the offline mirror instead of duplicating it.
 # mkarchiso needs packages at /var/cache/collectiveos/mirror/offline in the container,
