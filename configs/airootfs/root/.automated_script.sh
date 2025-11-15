@@ -1,65 +1,67 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-use_omarchy_helpers() {
-  export OMARCHY_PATH="/root/omarchy"
-  export OMARCHY_INSTALL="/root/omarchy/install"
-  export OMARCHY_INSTALL_LOG_FILE="/var/log/omarchy-install.log"
-  source /root/omarchy/install/helpers/all.sh
+COLLECTIVEOS_ACCENT="#00a86b"
+
+use_collectiveos_helpers() {
+  export COLLECTIVEOS_PATH="/root/collectiveos"
+  export COLLECTIVEOS_INSTALL="/root/collectiveos/install"
+  export COLLECTIVEOS_INSTALL_LOG_FILE="/var/log/collectiveos-install.log"
+  source /root/collectiveos/install/helpers/all.sh
 }
 
 run_configurator() {
-  set_tokyo_night_colors
+  set_shades_of_jade_colors
   ./configurator
-  export OMARCHY_USER="$(jq -r '.users[0].username' user_credentials.json)"
+  export COLLECTIVEOS_USER="$(jq -r '.users[0].username' user_credentials.json)"
 }
 
 install_arch() {
   clear_logo
-  gum style --foreground 3 --padding "1 0 0 $PADDING_LEFT" "Installing..."
+  gum style --foreground "$COLLECTIVEOS_ACCENT" --padding "1 0 0 $PADDING_LEFT" "Installing CollectiveOS..."
   echo
 
-  touch /var/log/omarchy-install.log
+  touch "$COLLECTIVEOS_INSTALL_LOG_FILE"
 
   start_log_output
 
   # Set CURRENT_SCRIPT for the trap to display better when nothing is returned for some reason
   CURRENT_SCRIPT="install_base_system"
-  install_base_system > >(sed -u 's/\x1b\[[0-9;]*[a-zA-Z]//g' >>/var/log/omarchy-install.log) 2>&1
+  install_base_system > >(sed -u 's/\x1b\[[0-9;]*[a-zA-Z]//g' >>"$COLLECTIVEOS_INSTALL_LOG_FILE") 2>&1
   unset CURRENT_SCRIPT
   stop_log_output
 }
 
-install_omarchy() {
+install_collectiveos() {
   chroot_bash -lc "sudo pacman -S --noconfirm --needed gum" >/dev/null
-  chroot_bash -lc "source /home/$OMARCHY_USER/.local/share/omarchy/install.sh || bash"
+  chroot_bash -lc "source /home/$COLLECTIVEOS_USER/.local/share/collectiveos/install.sh || bash"
 
   # Reboot if requested by installer
-  if [[ -f /mnt/var/tmp/omarchy-install-completed ]]; then
+  if [[ -f /mnt/var/tmp/collectiveos-install-completed ]]; then
     reboot
   fi
 }
 
-# Set Tokyo Night color scheme for the terminal
-set_tokyo_night_colors() {
+# Set the Shades of Jade color scheme for the terminal
+set_shades_of_jade_colors() {
   if [[ $(tty) == "/dev/tty"* ]]; then
-    # Tokyo Night color palette
-    echo -en "\e]P01a1b26" # black (background)
-    echo -en "\e]P1f7768e" # red
-    echo -en "\e]P29ece6a" # green
-    echo -en "\e]P3e0af68" # yellow
-    echo -en "\e]P47aa2f7" # blue
-    echo -en "\e]P5bb9af7" # magenta
-    echo -en "\e]P67dcfff" # cyan
-    echo -en "\e]P7a9b1d6" # white
-    echo -en "\e]P8414868" # bright black
-    echo -en "\e]P9f7768e" # bright red
-    echo -en "\e]PA9ece6a" # bright green
-    echo -en "\e]PBe0af68" # bright yellow
-    echo -en "\e]PC7aa2f7" # bright blue
-    echo -en "\e]PDbb9af7" # bright magenta
-    echo -en "\e]PE7dcfff" # bright cyan
-    echo -en "\e]PFc0caf5" # bright white (foreground)
+    # Shades of Jade palette
+    echo -en "\e]P000110b" # primary bg
+    echo -en "\e]P1b91c1c" # warm red accent
+    echo -en "\e]P200a86b" # emerald accent
+    echo -en "\e]P3f59e0b" # amber accent
+    echo -en "\e]P4114b3b" # deep teal
+    echo -en "\e]P59147ff" # violet highlight
+    echo -en "\e]P666cba6" # jade glow
+    echo -en "\e]P7e6f6f0" # primary text
+    echo -en "\e]P8002215" # muted bg
+    echo -en "\e]P9ff3370" # bright pink alert
+    echo -en "\e]PA40a258" # bright emerald
+    echo -en "\e]PBffde8a" # golden highlight
+    echo -en "\e]PC005436" # rich green
+    echo -en "\e]PDC3FCB8" # mint highlight
+    echo -en "\e]PE80d4b5" # aqua accent
+    echo -en "\e]PFEAEAEA" # soft white (foreground)
 
     # Set default foreground and background
     echo -en "\033[0m"
@@ -93,48 +95,48 @@ install_base_system() {
   cp /etc/pacman.conf /mnt/etc/pacman.conf
 
   # Mount the offline mirror so it's accessible in the chroot
-  mkdir -p /mnt/var/cache/omarchy/mirror/offline
-  mount --bind /var/cache/omarchy/mirror/offline /mnt/var/cache/omarchy/mirror/offline
+  mkdir -p /mnt/var/cache/collectiveos/mirror/offline
+  mount --bind /var/cache/collectiveos/mirror/offline /mnt/var/cache/collectiveos/mirror/offline
 
   # Mount the packages dir so it's accessible in the chroot
   mkdir -p /mnt/opt/packages
   mount --bind /opt/packages /mnt/opt/packages
 
-  # No need to ask for sudo during the installation (omarchy itself responsible for removing after install)
+  # No need to ask for sudo during the installation (CollectiveOS installer is responsible for removing it after install)
   mkdir -p /mnt/etc/sudoers.d
-  cat >/mnt/etc/sudoers.d/99-omarchy-installer <<EOF
+  cat >/mnt/etc/sudoers.d/99-collectiveos-installer <<EOF
 root ALL=(ALL:ALL) NOPASSWD: ALL
 %wheel ALL=(ALL:ALL) NOPASSWD: ALL
-$OMARCHY_USER ALL=(ALL:ALL) NOPASSWD: ALL
+$COLLECTIVEOS_USER ALL=(ALL:ALL) NOPASSWD: ALL
 EOF
-  chmod 440 /mnt/etc/sudoers.d/99-omarchy-installer
+  chmod 440 /mnt/etc/sudoers.d/99-collectiveos-installer
 
-  # Copy the local omarchy repo to the user's home directory
-  mkdir -p /mnt/home/$OMARCHY_USER/.local/share/
-  cp -r /root/omarchy /mnt/home/$OMARCHY_USER/.local/share/
+  # Copy the local CollectiveOS repo to the user's home directory
+  mkdir -p /mnt/home/$COLLECTIVEOS_USER/.local/share/
+  cp -r /root/collectiveos /mnt/home/$COLLECTIVEOS_USER/.local/share/
 
-  chown -R 1000:1000 /mnt/home/$OMARCHY_USER/.local/
+  chown -R 1000:1000 /mnt/home/$COLLECTIVEOS_USER/.local/
 
   # Ensure all necessary scripts are executable
-  find /mnt/home/$OMARCHY_USER/.local/share/omarchy -type f -path "*/bin/*" -exec chmod +x {} \;
-  chmod +x /mnt/home/$OMARCHY_USER/.local/share/omarchy/boot.sh 2>/dev/null || true
-  chmod +x /mnt/home/$OMARCHY_USER/.local/share/omarchy/default/waybar/indicators/screen-recording.sh 2>/dev/null || true
+  find /mnt/home/$COLLECTIVEOS_USER/.local/share/collectiveos -type f -path "*/bin/*" -exec chmod +x {} \;
+  chmod +x /mnt/home/$COLLECTIVEOS_USER/.local/share/collectiveos/boot.sh 2>/dev/null || true
+  chmod +x /mnt/home/$COLLECTIVEOS_USER/.local/share/collectiveos/default/waybar/indicators/screen-recording.sh 2>/dev/null || true
 }
 
 chroot_bash() {
-  HOME=/home/$OMARCHY_USER \
-    arch-chroot -u $OMARCHY_USER /mnt/ \
-    env OMARCHY_CHROOT_INSTALL=1 \
-    OMARCHY_USER_NAME="$(<user_full_name.txt)" \
-    OMARCHY_USER_EMAIL="$(<user_email_address.txt)" \
-    USER="$OMARCHY_USER" \
-    HOME="/home/$OMARCHY_USER" \
+  HOME=/home/$COLLECTIVEOS_USER \
+    arch-chroot -u $COLLECTIVEOS_USER /mnt/ \
+    env COLLECTIVEOS_CHROOT_INSTALL=1 \
+    COLLECTIVEOS_USER_NAME="$(<user_full_name.txt)" \
+    COLLECTIVEOS_USER_EMAIL="$(<user_email_address.txt)" \
+    USER="$COLLECTIVEOS_USER" \
+    HOME="/home/$COLLECTIVEOS_USER" \
     /bin/bash "$@"
 }
 
 if [[ $(tty) == "/dev/tty1" ]]; then
-  use_omarchy_helpers
+  use_collectiveos_helpers
   run_configurator
   install_arch
-  install_omarchy
+  install_collectiveos
 fi

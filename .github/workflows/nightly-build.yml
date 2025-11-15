@@ -20,22 +20,14 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
       
-    - name: Build ISO in Arch Linux container
+    - name: Build CollectiveOS ISO
       run: |
-        docker run --rm \
-          --privileged \
-          -v "${{ github.workspace }}:/workspace" \
-          -w /workspace \
-          archlinux:latest \
-          bash -c "
-            pacman -Syu --noconfirm && \
-            chmod +x build_iso.sh && \
-            ./build_iso.sh
-          "
+        chmod +x bin/collectiveos-iso-make
+        ./bin/collectiveos-iso-make --no-cache --no-boot-offer
     
     - name: Upload ISO artifact
       uses: actions/upload-artifact@v4
       with:
-        name: omarchy-iso-${{ github.run_number }}
-        path: out/*.iso
+        name: collectiveos-iso-${{ github.run_number }}
+        path: release/*.iso
         retention-days: 30

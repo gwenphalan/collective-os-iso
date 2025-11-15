@@ -1,0 +1,20 @@
+#!/bin/bash
+
+OP_ACCOUNT="${OP_ACCOUNT:-Omarchy}"
+R2_SECRET_ROOT="${COLLECTIVEOS_R2_SECRET_ROOT:-Shared/Cloudflare Buckets/iso.omarchy.org}"
+RCLONE_REMOTE_NAME="${COLLECTIVEOS_RCLONE_REMOTE:-CollectiveOS}"
+
+access_key=$(op read "op://$R2_SECRET_ROOT/access_key_id" --account "$OP_ACCOUNT")
+secret_access_key=$(op read "op://$R2_SECRET_ROOT/secret_access_key" --account "$OP_ACCOUNT")
+endpoint=$(op read "op://$R2_SECRET_ROOT/endpoint" --account "$OP_ACCOUNT")
+
+mkdir -p ~/.config/rclone
+
+cat > ~/.config/rclone/rclone.conf << EOF
+[$RCLONE_REMOTE_NAME]
+type = s3
+provider = Cloudflare
+access_key_id = $access_key
+secret_access_key = $secret_access_key
+endpoint = $endpoint
+EOF

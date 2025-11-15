@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if [ $# -eq 0 ]; then
-  echo "usage: omarchy-iso-sign [release/omarchy.iso]"
+  echo "usage: collectiveos-iso-sign [release/collectiveos.iso]"
   exit 1
 fi
 

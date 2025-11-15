@@ -1,29 +1,52 @@
 #!/bin/bash
 
-# Rely on Omarchy for styling and error handling
-source "$OMARCHY_INSTALL/helpers/all.sh"
+# Rely on CollectiveOS for styling and error handling
+source "$COLLECTIVEOS_INSTALL/helpers/all.sh"
+
+# Shades of Jade palette (see themes/collective-os)
+COLLECTIVEOS_BG_DARK="#00110b"
+COLLECTIVEOS_BG_PANEL="#114b3b"
+COLLECTIVEOS_BG_PANEL_ALT="#002215"
+COLLECTIVEOS_TEXT="#e6f6f0"
+COLLECTIVEOS_MUTED="#8a8a8d"
+COLLECTIVEOS_ACCENT="#00a86b"
+COLLECTIVEOS_ACCENT_DARK="#006540"
+COLLECTIVEOS_ACCENT_LIGHT="#66cba6"
+COLLECTIVEOS_HIGHLIGHT="#C3FCB8"
+COLLECTIVEOS_SELECTION="#CCCC99"
+COLLECTIVEOS_WARNING="#ff3370"
 
 # Ensure tzupdate is available for guessing timezone
 command -v tzupdate >/dev/null || sudo pacman -Sy --noconfirm tzupdate
 
 abort() {
-  gum style "${1:-Aborted installation}"
+  gum style --foreground "$COLLECTIVEOS_WARNING" --border thick --border-foreground "$COLLECTIVEOS_WARNING" --padding "1 2" "${1:-Aborted installation}"
   echo
-  gum style "You can retry later by running: ./.automated_script.sh"
+  gum style --foreground "$COLLECTIVEOS_TEXT" --background "$COLLECTIVEOS_BG_PANEL_ALT" --padding "0 1" "You can retry later by running: ./.automated_script.sh"
   exit 1
 }
 
 step() {
   clear_logo
   echo
-  gum style "$1"
+  gum style \
+    --border double \
+    --border-foreground "$COLLECTIVEOS_ACCENT" \
+    --foreground "$COLLECTIVEOS_TEXT" \
+    --background "$COLLECTIVEOS_BG_PANEL" \
+    --padding "1 2" \
+    "$1"
   echo
 }
 
 notice() {
   clear_logo
   echo
-  gum spin --spinner "pulse" --title "$1" -- sleep "${2:-2}"
+  gum spin \
+    --spinner "pulse" \
+    --spinner.foreground "$COLLECTIVEOS_ACCENT_LIGHT" \
+    --title.foreground "$COLLECTIVEOS_WARNING" \
+    --title "$1" -- sleep "${2:-2}"
   echo
 }
 
@@ -95,10 +118,10 @@ keyboard_form
 # STEP 2: USER
 
 user_form() {
-  step "Let's setup your user account..."
+  step "Let's setup your CollectiveOS user account..."
 
   while true; do
-    username=$(gum input --placeholder "Alphanumeric without spaces (like dhh)" --prompt.foreground="#845DF9" --prompt "Username> ") || abort
+    username=$(gum input --placeholder "Alphanumeric without spaces (like dhh)" --prompt.foreground="$COLLECTIVEOS_ACCENT" --prompt "Username> ") || abort
 
     if [[ "$username" =~ ^[a-z_][a-z0-9_-]*[$]?$ ]]; then
       break
@@ -108,8 +131,8 @@ user_form() {
   done
 
   while true; do
-    password=$(gum input --placeholder "Used for user + root + encryption" --prompt.foreground="#845DF9" --password --prompt "Password> ") || abort
-    password_confirmation=$(gum input --placeholder "Must match the password you just typed" --prompt.foreground="#845DF9" --password --prompt "Confirm> ") || abort
+    password=$(gum input --placeholder "Used for user + root + encryption" --prompt.foreground="$COLLECTIVEOS_ACCENT" --password --prompt "Password> ") || abort
+    password_confirmation=$(gum input --placeholder "Must match the password you just typed" --prompt.foreground="$COLLECTIVEOS_ACCENT" --password --prompt "Confirm> ") || abort
 
     if [[ -n "$password" && "$password" == "$password_confirmation" ]]; then
       break
@@ -123,16 +146,16 @@ user_form() {
   # Hash the password using yescrypt
   password_hash=$(printf '%s' "$password" | openssl passwd -6 -stdin)
 
-  full_name=$(gum input --placeholder "Used for git authentication (hit return to skip)" --prompt.foreground="#845DF9" --prompt "Full name> ")
-  email_address=$(gum input --placeholder "Used for git authentication (hit return to skip)" --prompt.foreground="#845DF9" --prompt "Email address> ")
+  full_name=$(gum input --placeholder "Used for git authentication (hit return to skip)" --prompt.foreground="$COLLECTIVEOS_ACCENT_LIGHT" --prompt "Full name> ")
+  email_address=$(gum input --placeholder "Used for git authentication (hit return to skip)" --prompt.foreground="$COLLECTIVEOS_ACCENT_LIGHT" --prompt "Email address> ")
 
   while true; do
-    hostname=$(gum input --placeholder "Alphanumeric without spaces (or return for 'omarchy')" --prompt.foreground="#845DF9" --prompt "Hostname> ")
+    hostname=$(gum input --placeholder "Alphanumeric without spaces (or return for 'collectiveos')" --prompt.foreground="$COLLECTIVEOS_ACCENT_DARK" --prompt "Hostname> ")
 
     if [[ "$hostname" =~ ^[A-Za-z_][A-Za-z0-9_-]*\$?$ ]]; then
       break
     elif [[ -z $hostname ]]; then
-      hostname="omarchy"
+      hostname="collectiveos"
       break
     else
       notice "Hostname must be alphanumeric using dashes or underscores but no spaces" 1
@@ -161,7 +184,9 @@ Email address,${email_address:-[Skipped]}
 Hostname,$hostname
 Timezone,$timezone
 Keyboard,$keyboard" |
-    gum table -s "," -p | sed "s/^/${PADDING_LEFT_SPACES}/"
+    gum table -s "," -p |
+    gum style --foreground "$COLLECTIVEOS_TEXT" --background "$COLLECTIVEOS_BG_PANEL_ALT" --padding "0 2" |
+    sed "s/^/${PADDING_LEFT_SPACES}/"
 
   echo
   if gum confirm --negative "No, change it" "Does this look right?"; then
@@ -191,7 +216,7 @@ get_disk_info() {
 }
 
 disk_form() {
-  step "Let's select where to install Omarchy..."
+  step "Let's select where to install CollectiveOS..."
 
   # Don't offer the install media as an option (Arch ISO mounts it here)
   local exclude_disk
@@ -222,7 +247,7 @@ disk_form() {
 disk_form
 
 while true; do
-  gum style "Everything will be overwritten. There is no recovery possible."
+  gum style --foreground "$COLLECTIVEOS_WARNING" --padding "0 1" "Everything will be overwritten. There is no recovery possible."
 
   echo
   if gum confirm --affirmative "Yes, format disk" --negative "No, change it" "Confirm overwriting ${disk}"; then
@@ -235,7 +260,7 @@ done
 clear
 
 # Save user full name and email address, so the autostart can
-# set them as OMARCHY_USER_NAME and OMARCHY_USER_EMAIL
+# set them as COLLECTIVEOS_USER_NAME and COLLECTIVEOS_USER_EMAIL
 echo "$full_name" >user_full_name.txt
 echo "$email_address" >user_email_address.txt
 

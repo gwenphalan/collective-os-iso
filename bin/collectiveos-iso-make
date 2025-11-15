@@ -20,7 +20,7 @@ while [[ $# -gt 0 ]]; do
     shift
     ;;
   --dev)
-    OMARCHY_INSTALLER_REF=dev
+    COLLECTIVEOS_INSTALLER_REF=dev
     shift
     ;;
   *)
@@ -40,14 +40,14 @@ BUILD_ROOT=$(realpath "${BASH_SOURCE[0]%/*}/..")
 BUILD_RELEASE_PATH="$BUILD_ROOT/release"
 mkdir -p "$BUILD_RELEASE_PATH"
 
-OMARCHY_INSTALLER_REPO="${OMARCHY_INSTALLER_REPO:-basecamp/omarchy}"
-OMARCHY_INSTALLER_REF="${OMARCHY_INSTALLER_REF:-master}"
+COLLECTIVEOS_INSTALLER_REPO="${COLLECTIVEOS_INSTALLER_REPO:-gwenphalan/collective-os}"
+COLLECTIVEOS_INSTALLER_REF="${COLLECTIVEOS_INSTALLER_REF:-main}"
 
 DOCKER_ARGS=(
   --rm
   --privileged
-  -e "OMARCHY_INSTALLER_REPO=$OMARCHY_INSTALLER_REPO"
-  -e "OMARCHY_INSTALLER_REF=$OMARCHY_INSTALLER_REF"
+  -e "COLLECTIVEOS_INSTALLER_REPO=$COLLECTIVEOS_INSTALLER_REPO"
+  -e "COLLECTIVEOS_INSTALLER_REF=$COLLECTIVEOS_INSTALLER_REF"
   -e "HOST_UID=$(id -u)"
   -e "HOST_GID=$(id -g)"
   -v "$BUILD_RELEASE_PATH/:/out/"
@@ -57,9 +57,23 @@ DOCKER_ARGS=(
   -v "$BUILD_ROOT/configs:/configs:ro"
 )
 
-# Use local source of Omarchy from $OMARCHY_PATH instead of git checkout
+# Use local source of CollectiveOS from $COLLECTIVEOS_PATH instead of git checkout
 if [[ -n "${LOCAL_SOURCE-}" ]]; then
-  DOCKER_ARGS+=(-v "$OMARCHY_PATH:/omarchy:ro")
+  if [[ -z "${COLLECTIVEOS_PATH:-}" ]]; then
+    if [[ -d "$HOME/collective-os" ]]; then
+      COLLECTIVEOS_PATH="$HOME/collective-os"
+    else
+      echo "COLLECTIVEOS_PATH must point to your local collective-os checkout when using --local-source" >&2
+      exit 1
+    fi
+  fi
+
+  if [[ ! -d "$COLLECTIVEOS_PATH" ]]; then
+    echo "COLLECTIVEOS_PATH does not exist: $COLLECTIVEOS_PATH" >&2
+    exit 1
+  fi
+
+  DOCKER_ARGS+=(-v "$COLLECTIVEOS_PATH:/collectiveos:ro")
 fi
 
 # Use local pacman cache if you already have one on host to speed up repeat runs
@@ -71,10 +85,10 @@ fi
 if [[ -z "$NO_CACHE" ]]; then
   # using a dated dir on the host to refresh daily if building multiple times
   BUILD_DATE=$(date +%Y-%m-%d)
-  OFFLINE_REPO_BUILD_CACHE_DIR="$HOME/.cache/omarchy/iso_${BUILD_DATE}/airootfs/var/cache/omarchy"
+  OFFLINE_REPO_BUILD_CACHE_DIR="$HOME/.cache/collectiveos/iso_${BUILD_DATE}/airootfs/var/cache/collectiveos"
   mkdir -p "$OFFLINE_REPO_BUILD_CACHE_DIR"
-  # Mount to /var/cache/airootfs/var/cache/omarchy since that's where repo packages go in the ISO
-  DOCKER_ARGS+=(-v "$OFFLINE_REPO_BUILD_CACHE_DIR:/var/cache/airootfs/var/cache/omarchy")
+  # Mount to /var/cache/airootfs/var/cache/collectiveos since that's where repo packages go in the ISO
+  DOCKER_ARGS+=(-v "$OFFLINE_REPO_BUILD_CACHE_DIR:/var/cache/airootfs/var/cache/collectiveos")
 fi
 
 # Run the builder with assembled args
@@ -82,11 +96,11 @@ docker run "${DOCKER_ARGS[@]}" archlinux/archlinux:latest /$BUILD_SCRIPT
 
 # Move as install ref
 latest_iso=$(\ls -t "$BUILD_RELEASE_PATH"/*.iso | head -n1)
-iso_ref="${latest_iso%.*}-$OMARCHY_INSTALLER_REF.iso"
+iso_ref="${latest_iso%.*}-$COLLECTIVEOS_INSTALLER_REF.iso"
 mv -f "$latest_iso" "$iso_ref"
 
 # Offer to boot the new build
 if [[ -z "$NO_BOOT_OFFER" ]]; then
   echo
-  gum confirm "Boot $iso_ref?" && omarchy-iso-boot "$iso_ref"
+  gum confirm "Boot $iso_ref?" && collectiveos-iso-boot "$iso_ref"
 fi
