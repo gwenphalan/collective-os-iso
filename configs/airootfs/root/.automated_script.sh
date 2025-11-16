@@ -2,6 +2,24 @@
 set -euo pipefail
 
 COLLECTIVEOS_ACCENT="#00a86b"
+CIDER_COLLECTIVE_KEY_ID="A0CD6B993438E22634450CDD2A236C3F42A61682"
+CIDER_COLLECTIVE_KEY_FILE="/etc/pacman.d/keys/cidercollective.asc"
+
+# Import and trust the Cider Collective repo key so pacman never prompts mid-install.
+ensure_cidercollective_key() {
+  if pacman-key --list-keys "$CIDER_COLLECTIVE_KEY_ID" >/dev/null 2>&1; then
+    return
+  fi
+
+  if [[ -f "$CIDER_COLLECTIVE_KEY_FILE" ]]; then
+    pacman-key --add "$CIDER_COLLECTIVE_KEY_FILE"
+  else
+    curl -fsSL https://repo.cider.sh/RPM-GPG-KEY -o /tmp/cider-key.gpg
+    pacman-key --add /tmp/cider-key.gpg
+  fi
+
+  pacman-key --lsign-key "$CIDER_COLLECTIVE_KEY_ID"
+}
 
 use_collectiveos_helpers() {
   export COLLECTIVEOS_PATH="/root/collectiveos"
@@ -74,6 +92,7 @@ install_base_system() {
   pacman-key --init
   pacman-key --populate archlinux
   pacman-key --populate omarchy
+  ensure_cidercollective_key
 
   # Sync the offline database so pacman can find packages
   pacman -Sy --noconfirm

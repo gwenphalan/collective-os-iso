@@ -23,4 +23,5 @@ file_permissions=(
   ["/root/configurator"]="0:0:755"
   ["/var/cache/collectiveos/mirror/offline/"]="0:0:775"
   ["/usr/local/bin/collectiveos-upload-log"]="0:0:755"
+  ["/etc/pacman.d/keys/cidercollective.asc"]="0:0:644"
 )
