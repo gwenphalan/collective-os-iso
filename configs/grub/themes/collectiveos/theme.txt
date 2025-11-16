@@ -29,7 +29,7 @@ title-y: 12%
   item_font = "../fonts/unicode.pf2"
   item_color = "#cceee1"
   selected_item_font = "../fonts/unicode.pf2"
-  selected_item_color = "#00110b"
+  selected_item_color = "#e6f6f0"
   scrollbar = false
 }
 
