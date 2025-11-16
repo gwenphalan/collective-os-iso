@@ -131,6 +131,7 @@ EOF
   chmod 440 /mnt/etc/sudoers.d/99-collectiveos-installer
 
   # Copy the local CollectiveOS repo to the user's home directory
+  seed_target_cider_key
   mkdir -p /mnt/home/$COLLECTIVEOS_USER/.local/share/
   cp -r /root/collectiveos /mnt/home/$COLLECTIVEOS_USER/.local/share/
 
@@ -140,6 +141,22 @@ EOF
   find /mnt/home/$COLLECTIVEOS_USER/.local/share/collectiveos -type f -path "*/bin/*" -exec chmod +x {} \;
   chmod +x /mnt/home/$COLLECTIVEOS_USER/.local/share/collectiveos/boot.sh 2>/dev/null || true
   chmod +x /mnt/home/$COLLECTIVEOS_USER/.local/share/collectiveos/default/waybar/indicators/screen-recording.sh 2>/dev/null || true
+}
+
+seed_target_cider_key() {
+  local target_key_dir="/mnt/etc/pacman.d/keys"
+  local target_key_file="$target_key_dir/cidercollective.asc"
+
+  mkdir -p "$target_key_dir"
+
+  if [[ -f "$CIDER_COLLECTIVE_KEY_FILE" ]]; then
+    cp "$CIDER_COLLECTIVE_KEY_FILE" "$target_key_file"
+  else
+    curl -fsSL https://repo.cider.sh/RPM-GPG-KEY -o "$target_key_file"
+  fi
+
+  arch-chroot /mnt pacman-key --add /etc/pacman.d/keys/cidercollective.asc
+  arch-chroot /mnt pacman-key --lsign-key "$CIDER_COLLECTIVE_KEY_ID"
 }
 
 chroot_bash() {

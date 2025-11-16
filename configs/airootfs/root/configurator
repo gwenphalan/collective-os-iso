@@ -16,13 +16,17 @@ COLLECTIVEOS_HIGHLIGHT="#C3FCB8"
 COLLECTIVEOS_SELECTION="#CCCC99"
 COLLECTIVEOS_WARNING="#ff3370"
 
+indent_output() {
+  sed "s/^/${PADDING_LEFT_SPACES}/"
+}
+
 # Ensure tzupdate is available for guessing timezone
 command -v tzupdate >/dev/null || sudo pacman -Sy --noconfirm tzupdate
 
 abort() {
-  gum style --foreground "$COLLECTIVEOS_WARNING" --border thick --border-foreground "$COLLECTIVEOS_WARNING" --padding "1 2" "${1:-Aborted installation}"
+  gum style --foreground "$COLLECTIVEOS_WARNING" --border thick --border-foreground "$COLLECTIVEOS_WARNING" --padding "1 2" "${1:-Aborted installation}" | indent_output
   echo
-  gum style --foreground "$COLLECTIVEOS_TEXT" --background "$COLLECTIVEOS_BG_PANEL_ALT" --padding "0 1" "You can retry later by running: ./.automated_script.sh"
+  gum style --foreground "$COLLECTIVEOS_TEXT" --background "$COLLECTIVEOS_BG_PANEL_ALT" --padding "0 1" "You can retry later by running: ./.automated_script.sh" | indent_output
   exit 1
 }
 
@@ -35,7 +39,7 @@ step() {
     --foreground "$COLLECTIVEOS_TEXT" \
     --background "$COLLECTIVEOS_BG_PANEL" \
     --padding "1 2" \
-    "$1"
+    "$1" | indent_output
   echo
 }
 
@@ -46,7 +50,7 @@ notice() {
     --spinner "pulse" \
     --spinner.foreground "$COLLECTIVEOS_ACCENT_LIGHT" \
     --title.foreground "$COLLECTIVEOS_WARNING" \
-    --title "$1" -- sleep "${2:-2}"
+    --title "$1" -- sleep "${2:-2}" | indent_output
   echo
 }
 
@@ -247,7 +251,7 @@ disk_form() {
 disk_form
 
 while true; do
-  gum style --foreground "$COLLECTIVEOS_WARNING" --padding "0 1" "Everything will be overwritten. There is no recovery possible."
+  gum style --foreground "$COLLECTIVEOS_WARNING" --padding "0 1" "Everything will be overwritten. There is no recovery possible." | indent_output
 
   echo
   if gum confirm --affirmative "Yes, format disk" --negative "No, change it" "Confirm overwriting ${disk}"; then

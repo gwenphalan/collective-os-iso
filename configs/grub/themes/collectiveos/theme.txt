@@ -27,7 +27,7 @@ title-y: 12%
   item_padding = 6
   item_spacing = 6
   item_font = "../fonts/unicode.pf2"
-  item_color = "#d5e8e0"
+  item_color = "#cceee1"
   selected_item_font = "../fonts/unicode.pf2"
   selected_item_color = "#00110b"
   scrollbar = false
@@ -39,6 +39,6 @@ title-y: 12%
   width = 100%
   align = "center"
   text = "Use arrow keys to select, Enter to boot • Press e for options"
-  color = "#cce6f6"
+  color = "#80d4b5"
   font = "../fonts/unicode.pf2"
 }
