@@ -2,18 +2,49 @@
 
 set -e
 
-# Packages that must be supplied by the CollectiveOS repository (built from AUR)
-AUR_PACKAGES=(modrinth-app proton-authenticator-bin proton-pass-bin qt5-remoteobjects)
-declare -A AUR_PACKAGE_SET
-for pkg in "${AUR_PACKAGES[@]}"; do
-  AUR_PACKAGE_SET[$pkg]=1
-done
+# Default AUR packages in case the installer repo does not provide its own list
+DEFAULT_AUR_PACKAGES=(modrinth-app proton-authenticator-bin proton-pass-bin qt5-remoteobjects)
 
 # Note that these are packages installed to the Arch container used to build the ISO.
 pacman-key --init
 pacman --noconfirm -Sy archlinux-keyring
 pacman --noconfirm -Syu
 pacman --noconfirm -Sy archiso git sudo base-devel jq grub
+
+# Provide swap to prevent OOM when building large Rust AUR packages
+SWAPFILE_PATH="${ISO_SWAPFILE:-/swapfile}"
+SWAPFILE_SIZE_GB="${ISO_SWAP_SIZE_GB:-8}"
+SWAP_LOOP_DEVICE=""
+cleanup_swap() {
+  if [[ -n "$SWAP_LOOP_DEVICE" ]]; then
+    swapoff "$SWAP_LOOP_DEVICE" || true
+    losetup -d "$SWAP_LOOP_DEVICE" || true
+  fi
+}
+ensure_loop_devices() {
+  if [[ ! -e /dev/loop-control ]]; then
+    mknod /dev/loop-control c 10 237
+    chmod 660 /dev/loop-control
+  fi
+  for i in $(seq 0 7); do
+    dev="/dev/loop$i"
+    if [[ ! -e "$dev" ]]; then
+      mknod "$dev" b 7 $i
+      chmod 660 "$dev"
+    fi
+  done
+}
+if [[ -z "${SKIP_ISO_SWAP:-}" ]]; then
+  if [[ ! -f "$SWAPFILE_PATH" ]]; then
+    dd if=/dev/zero of="$SWAPFILE_PATH" bs=1M count=$((SWAPFILE_SIZE_GB * 1024)) status=none
+    chmod 600 "$SWAPFILE_PATH"
+  fi
+  ensure_loop_devices
+  SWAP_LOOP_DEVICE=$(losetup --show -f "$SWAPFILE_PATH")
+  mkswap -f "$SWAP_LOOP_DEVICE"
+  swapon "$SWAP_LOOP_DEVICE"
+  trap cleanup_swap EXIT
+fi
 
 # Import Cider Collective key for cidercollective repo before using pacman-online.conf
 CIDER_KEY_ID="A0CD6B993438E22634450CDD2A236C3F42A61682"
@@ -58,10 +89,30 @@ else
   git clone -b "$INSTALLER_REF" "https://github.com/$INSTALLER_REPO.git" "$INSTALLER_DEST"
 fi
 
+# Load the list of packages that must be prebuilt by the installer repo
+AUR_PACKAGES=()
+AUR_PACKAGE_FILE="$INSTALLER_DEST/install/collectiveos-aur.packages"
+if [[ -f "$AUR_PACKAGE_FILE" ]]; then
+  mapfile -t AUR_PACKAGES < <(grep -Ev '^\s*(#|$)' "$AUR_PACKAGE_FILE")
+  if [[ ${#AUR_PACKAGES[@]} -eq 0 ]]; then
+    echo "WARNING: $AUR_PACKAGE_FILE is empty; no AUR packages will be injected" >&2
+  fi
+else
+  echo "WARNING: $AUR_PACKAGE_FILE not found; falling back to default AUR package list" >&2
+  AUR_PACKAGES=("${DEFAULT_AUR_PACKAGES[@]}")
+fi
+
+declare -A AUR_PACKAGE_SET=()
+for pkg in "${AUR_PACKAGES[@]}"; do
+  AUR_PACKAGE_SET[$pkg]=1
+done
+
 # Build AUR packages inside the installer repo so they're available to the ISO build
 if [[ -z "${SKIP_LOCAL_AUR_BUILD:-}" ]]; then
   if [[ -x "$INSTALLER_DEST/scripts/build-local-aur.sh" ]]; then
-    echo "==> Building CollectiveOS AUR packages"
+    AUR_CARGO_JOBS="${CARGO_BUILD_JOBS:-1}"
+    AUR_RUSTFLAGS="${RUSTFLAGS:--Ccodegen-units=2}"
+    echo "==> Building CollectiveOS AUR packages (CARGO_BUILD_JOBS=$AUR_CARGO_JOBS, RUSTFLAGS=$AUR_RUSTFLAGS)"
 
     AUR_BUILD_USER=${AUR_BUILD_USER:-aurbuilder}
     if ! id -u "$AUR_BUILD_USER" >/dev/null 2>&1; then
@@ -76,7 +127,7 @@ if [[ -z "${SKIP_LOCAL_AUR_BUILD:-}" ]]; then
 
     chown -R "$AUR_BUILD_USER:$AUR_BUILD_USER" "$INSTALLER_DEST"
     pushd "$INSTALLER_DEST" >/dev/null
-    if ! runuser -u "$AUR_BUILD_USER" -- ./scripts/build-local-aur.sh; then
+    if ! runuser -u "$AUR_BUILD_USER" -- env "CARGO_BUILD_JOBS=$AUR_CARGO_JOBS" "RUSTFLAGS=$AUR_RUSTFLAGS" ./scripts/build-local-aur.sh; then
       popd >/dev/null
       chown -R root:root "$INSTALLER_DEST"
       echo "ERROR: build-local-aur.sh failed" >&2
