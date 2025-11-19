@@ -168,7 +168,12 @@ EOF
   chmod 440 /mnt/etc/sudoers.d/99-collectiveos-installer
 
   # Copy the local CollectiveOS repo to the user's home directory
-  seed_target_cider_key
+  # Copy the local CollectiveOS repo to the user's home directory
+  if ! seed_target_cider_key; then
+    echo "ERROR: Failed to seed Cider Collective key in target system" >&2
+    return 1
+  fi
+  mkdir -p /mnt/home/$COLLECTIVEOS_USER/.local/share/
   mkdir -p /mnt/home/$COLLECTIVEOS_USER/.local/share/
   cp -r /root/collectiveos /mnt/home/$COLLECTIVEOS_USER/.local/share/
 
