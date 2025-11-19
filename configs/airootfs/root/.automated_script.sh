@@ -3,6 +3,7 @@ set -euo pipefail
 
 COLLECTIVEOS_ACCENT="#00a86b"
 
+# use_collectiveos_helpers sets COLLECTIVEOS_PATH, COLLECTIVEOS_INSTALL, and COLLECTIVEOS_INSTALL_LOG_FILE and sources the CollectiveOS helper script.
 use_collectiveos_helpers() {
   export COLLECTIVEOS_PATH="/root/collectiveos"
   export COLLECTIVEOS_INSTALL="/root/collectiveos/install"
@@ -10,12 +11,14 @@ use_collectiveos_helpers() {
   source /root/collectiveos/install/helpers/all.sh
 }
 
+# run_configurator sets terminal colors, runs the local configurator, and exports COLLECTIVEOS_USER from user_credentials.json.
 run_configurator() {
   set_shades_of_jade_colors
   ./configurator
   export COLLECTIVEOS_USER="$(jq -r '.users[0].username' user_credentials.json)"
 }
 
+# install_arch displays an "Installing CollectiveOS..." banner, ensures the install log exists and logging is started, runs install_base_system while stripping ANSI escape codes into "$COLLECTIVEOS_INSTALL_LOG_FILE" (setting CURRENT_SCRIPT for trap context), and then stops logging.
 install_arch() {
   clear_logo
   gum style --foreground "$COLLECTIVEOS_ACCENT" --padding "1 0 0 $PADDING_LEFT" "Installing CollectiveOS..."
@@ -32,6 +35,7 @@ install_arch() {
   stop_log_output
 }
 
+# install_collectiveos installs gum inside the chroot, executes the CollectiveOS installer from the new user's home, and reboots the machine if the installer signals completion by creating /mnt/var/tmp/collectiveos-install-completed.
 install_collectiveos() {
   chroot_bash -lc "sudo pacman -S --noconfirm --needed gum" >/dev/null
   chroot_bash -lc "source /home/$COLLECTIVEOS_USER/.local/share/collectiveos/install.sh || bash"
@@ -42,7 +46,7 @@ install_collectiveos() {
   fi
 }
 
-# Set the Shades of Jade color scheme for the terminal
+# set_shades_of_jade_colors sets the terminal's color palette to a custom "Shades of Jade" scheme when running on a TTY. It emits escape sequences for the 16 terminal color slots, resets text attributes, and clears the screen.
 set_shades_of_jade_colors() {
   if [[ $(tty) == "/dev/tty"* ]]; then
     # Shades of Jade palette
@@ -69,6 +73,9 @@ set_shades_of_jade_colors() {
   fi
 }
 
+# install_base_system installs an Arch base system using configurator-generated files and prepares /mnt for the CollectiveOS installer.
+# 
+# Initializes and populates the pacman keyring, synchronizes package databases, runs archinstall with the generated configuration and credentials, places the offline pacman.conf into the new root, bind-mounts the offline mirror and package directories into /mnt, creates a sudoers drop-in granting NOPASSWD to root, wheel, and the installer user, copies the local CollectiveOS repository into the new user's home, fixes ownership, and ensures installer scripts are executable.
 install_base_system() {
   # Initialize and populate the keyring
   pacman-key --init
@@ -123,6 +130,8 @@ EOF
   chmod +x /mnt/home/$COLLECTIVEOS_USER/.local/share/collectiveos/default/waybar/indicators/screen-recording.sh 2>/dev/null || true
 }
 
+# chroot_bash runs the given command inside /mnt using arch-chroot as the COLLECTIVEOS_USER with chroot-specific environment variables set.
+# Any arguments are forwarded to /bin/bash inside the chroot; HOME and user-related variables are configured for the target user.
 chroot_bash() {
   HOME=/home/$COLLECTIVEOS_USER \
     arch-chroot -u $COLLECTIVEOS_USER /mnt/ \
