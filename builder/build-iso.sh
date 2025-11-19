@@ -135,8 +135,8 @@ if [[ -z "${SKIP_LOCAL_AUR_BUILD:-}" ]]; then
     fi
 
     SUDOERS_FILE="/etc/sudoers.d/collectiveos-aur"
-    if [[ ! -f $SUDOERS_FILE ]]; then
-      echo "$AUR_BUILD_USER ALL=(ALL) NOPASSWD: /usr/bin/pacman" >$SUDOERS_FILE
+    if [[ ! -f "$SUDOERS_FILE" ]]; then
+      echo "$AUR_BUILD_USER ALL=(ALL) NOPASSWD: /usr/bin/pacman" >>"$SUDOERS_FILE"
       chmod 440 $SUDOERS_FILE
     fi
 
