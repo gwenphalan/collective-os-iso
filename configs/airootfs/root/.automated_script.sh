@@ -3,6 +3,7 @@ set -euo pipefail
 
 COLLECTIVEOS_ACCENT="#00a86b"
 CIDER_COLLECTIVE_KEY_ID="A0CD6B993438E22634450CDD2A236C3F42A61682"
+CIDER_COLLECTIVE_KEY_FINGERPRINT="A0CD6B993438E22634450CDD2A236C3F42A61682"
 CIDER_COLLECTIVE_KEY_FILE="/etc/pacman.d/keys/cidercollective.asc"
 
 # Import and trust the Cider Collective repo key so pacman never prompts mid-install.
@@ -11,14 +12,47 @@ ensure_cidercollective_key() {
     return
   fi
 
+  local key_source=""
+  local temp_key=""
+
   if [[ -f "$CIDER_COLLECTIVE_KEY_FILE" ]]; then
-    pacman-key --add "$CIDER_COLLECTIVE_KEY_FILE"
+    key_source="$CIDER_COLLECTIVE_KEY_FILE"
   else
-    curl -fsSL https://repo.cider.sh/RPM-GPG-KEY -o /tmp/cider-key.gpg
-    pacman-key --add /tmp/cider-key.gpg
+    temp_key="$(mktemp /tmp/cider-key.XXXXXX)"
+    if ! curl -fsSL https://repo.cider.sh/RPM-GPG-KEY -o "$temp_key"; then
+      echo "Failed to download the Cider Collective repo key" >&2
+      rm -f "$temp_key"
+      exit 1
+    fi
+
+    local downloaded_fingerprint
+    if ! downloaded_fingerprint="$(gpg --batch --with-colons --show-keys "$temp_key" | awk -F: '/^fpr:/ {print $10; exit}')" || [[ -z "$downloaded_fingerprint" ]]; then
+      echo "Unable to determine fingerprint for downloaded Cider Collective repo key" >&2
+      rm -f "$temp_key"
+      exit 1
+    fi
+
+    if [[ "$downloaded_fingerprint" != "$CIDER_COLLECTIVE_KEY_FINGERPRINT" ]]; then
+      echo "Downloaded Cider Collective repo key fingerprint mismatch" >&2
+      rm -f "$temp_key"
+      exit 1
+    fi
+
+    key_source="$temp_key"
   fi
 
-  pacman-key --lsign-key "$CIDER_COLLECTIVE_KEY_ID"
+  if ! pacman-key --add "$key_source"; then
+    echo "Failed to import the Cider Collective repo key" >&2
+    [[ -n "$temp_key" ]] && rm -f "$temp_key"
+    exit 1
+  fi
+
+  [[ -n "$temp_key" ]] && rm -f "$temp_key"
+
+  if ! pacman-key --lsign-key "$CIDER_COLLECTIVE_KEY_ID"; then
+    echo "Failed to locally sign the Cider Collective repo key" >&2
+    exit 1
+  fi
 }
 
 use_collectiveos_helpers() {
