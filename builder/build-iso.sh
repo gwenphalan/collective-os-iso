@@ -5,11 +5,82 @@ set -e
 # Default AUR packages in case the installer repo does not provide its own list
 DEFAULT_AUR_PACKAGES=(modrinth-app proton-authenticator-bin proton-pass-bin qt5-remoteobjects)
 
+AUR_BUILD_USER=${AUR_BUILD_USER:-aurbuilder}
+AUR_SUDOERS_FILE="/etc/sudoers.d/collectiveos-aur"
+
+ensure_aur_build_user() {
+  if ! id -u "$AUR_BUILD_USER" >/dev/null 2>&1; then
+    useradd -m "$AUR_BUILD_USER"
+  fi
+
+  local sudoers_entry="$AUR_BUILD_USER ALL=(ALL) NOPASSWD: /usr/bin/pacman"
+  if [[ ! -f "$AUR_SUDOERS_FILE" ]] || ! grep -Fxq "$sudoers_entry" "$AUR_SUDOERS_FILE"; then
+    local tmp_sudoers
+    tmp_sudoers=$(mktemp)
+    printf '%s\n' "$sudoers_entry" >"$tmp_sudoers"
+    if ! visudo -cf "$tmp_sudoers" >/dev/null; then
+      echo "ERROR: Failed to validate sudoers entry for $AUR_BUILD_USER" >&2
+      rm -f "$tmp_sudoers"
+      exit 1
+    fi
+    install -m 440 "$tmp_sudoers" "$AUR_SUDOERS_FILE"
+    rm -f "$tmp_sudoers"
+  fi
+}
+
+build_override_packages_for_missing() {
+  local override_root="/builder/aur-overrides"
+  local next_missing=()
+
+  if [[ ! -d "$override_root" || ${#missing_aur_pkgs[@]} -eq 0 ]]; then
+    return
+  fi
+
+  ensure_aur_build_user
+  mkdir -p /tmp/collectiveos-aur-overrides
+
+  for pkg in "${missing_aur_pkgs[@]}"; do
+    local src="$override_root/$pkg"
+    if [[ ! -d "$src" ]]; then
+      next_missing+=("$pkg")
+      continue
+    fi
+
+    local build_dir="/tmp/collectiveos-aur-overrides/$pkg"
+    rm -rf "$build_dir"
+    mkdir -p "$(dirname "$build_dir")"
+    cp -r "$src" "$build_dir"
+    chown -R "$AUR_BUILD_USER:$AUR_BUILD_USER" "$build_dir"
+
+    if ! runuser -u "$AUR_BUILD_USER" -- bash -lc "cd '$build_dir' && makepkg -s --noconfirm"; then
+      echo "WARNING: Failed to build override package $pkg" >&2
+      next_missing+=("$pkg")
+      continue
+    fi
+
+    shopt -s nullglob
+    local built_pkgs=("$build_dir"/*.pkg.tar.*)
+    shopt -u nullglob
+    if [[ ${#built_pkgs[@]} -eq 0 ]]; then
+      echo "WARNING: Override build for $pkg produced no artifacts" >&2
+      next_missing+=("$pkg")
+      continue
+    fi
+
+    cp -u "${built_pkgs[@]}" "$offline_mirror_dir/"
+    local installer_repo_local_aur="$INSTALLER_DEST/repos/local-aur/x86_64"
+    mkdir -p "$installer_repo_local_aur"
+    cp "${built_pkgs[@]}" "$installer_repo_local_aur/"
+  done
+
+  missing_aur_pkgs=("${next_missing[@]}")
+}
+
 # Note that these are packages installed to the Arch container used to build the ISO.
 pacman-key --init
 pacman --noconfirm -Sy archlinux-keyring
 pacman --noconfirm -Syu
-pacman --noconfirm -Sy archiso git sudo base-devel jq grub
+pacman --noconfirm -Sy archiso git sudo base-devel jq grub jdk21-openjdk maven
 
 # Provide swap to prevent OOM when building large Rust AUR packages
 SWAPFILE_PATH="${ISO_SWAPFILE:-/swapfile}"
@@ -47,7 +118,8 @@ if [[ -z "${SKIP_ISO_SWAP:-}" ]]; then
   fi
   ensure_loop_devices
   SWAP_LOOP_DEVICE=$(losetup --show -f "$SWAPFILE_PATH")
-  mkswap -f "$SWAP_LOOP_DEVICE"
+  # mkswap performs sanity checks; the loop device was freshly created so forcing is unnecessary.
+  mkswap "$SWAP_LOOP_DEVICE"
   swapon "$SWAP_LOOP_DEVICE"
   trap cleanup_swap EXIT
 fi
@@ -117,6 +189,10 @@ else
   AUR_PACKAGES=("${DEFAULT_AUR_PACKAGES[@]}")
 fi
 
+# Ensure Limine helper packages are always prebuilt for offline installs
+REQUIRED_LIMINE_AUR_PACKAGES=(limine-snapper-sync limine-mkinitcpio-hook)
+AUR_PACKAGES+=("${REQUIRED_LIMINE_AUR_PACKAGES[@]}")
+
 declare -A AUR_PACKAGE_SET=()
 for pkg in "${AUR_PACKAGES[@]}"; do
   AUR_PACKAGE_SET[$pkg]=1
@@ -129,16 +205,7 @@ if [[ -z "${SKIP_LOCAL_AUR_BUILD:-}" ]]; then
     AUR_RUSTFLAGS="${RUSTFLAGS:--Ccodegen-units=2}"
     echo "==> Building CollectiveOS AUR packages (CARGO_BUILD_JOBS=$AUR_CARGO_JOBS, RUSTFLAGS=$AUR_RUSTFLAGS)"
 
-    AUR_BUILD_USER=${AUR_BUILD_USER:-aurbuilder}
-    if ! id -u "$AUR_BUILD_USER" >/dev/null 2>&1; then
-      useradd -m "$AUR_BUILD_USER"
-    fi
-
-    SUDOERS_FILE="/etc/sudoers.d/collectiveos-aur"
-    if [[ ! -f "$SUDOERS_FILE" ]]; then
-      echo "$AUR_BUILD_USER ALL=(ALL) NOPASSWD: /usr/bin/pacman" >>"$SUDOERS_FILE"
-      chmod 440 $SUDOERS_FILE
-    fi
+    ensure_aur_build_user
 
     chown -R "$AUR_BUILD_USER:$AUR_BUILD_USER" "$INSTALLER_DEST"
     pushd "$INSTALLER_DEST" >/dev/null
@@ -229,6 +296,10 @@ if [[ ${#AUR_PACKAGES[@]} -gt 0 ]]; then
   else
     missing_aur_pkgs=("${AUR_PACKAGES[@]}")
   fi
+fi
+
+if [[ ${#missing_aur_pkgs[@]} -gt 0 ]]; then
+  build_override_packages_for_missing
 fi
 
 if [[ ${#missing_aur_pkgs[@]} -gt 0 ]]; then
