@@ -19,7 +19,7 @@ fi
 
 # Sign and upload master ISO
 latest_master_iso=$(\ls -t "$BUILD_RELEASE_PATH"/*x86_64-master.iso | head -n1)
-release_master_iso="$BUILD_RELEASE_PATH/collectiveos-$BULD_VERSION.iso"
+release_master_iso="$BUILD_RELEASE_PATH/collectiveos-$BUILD_VERSION.iso"
 cp "$latest_master_iso" "$release_master_iso"
 
 echo -e "\e[32mSigning master ISO\e[0m"
