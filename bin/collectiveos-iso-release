@@ -1,7 +1,14 @@
 #!/bin/bash
 
+NO_MAKE=0
+
+if [ "$1" == "--no-make" ]; then
+  NO_MAKE=1
+  shift
+fi
+
 if [ $# -eq 0 ]; then
-  echo "Usage: collectiveos-iso-release [version]"
+  echo "Usage: collectiveos-iso-release [--no-make] <version>"
   exit 1
 fi
 
@@ -10,7 +17,7 @@ BUILD_RELEASE_PATH="$BUILD_ROOT/release"
 BUILD_VERSION="$1"
 
 # Make ISOs
-if [[ $1 != "--no-make" ]]; then
+if [[ $NO_MAKE -eq 0 ]]; then
   echo -e "\e[32mMaking master ISO\e[0m"
   COLLECTIVEOS_INSTALLER_REF=master collectiveos-iso-make --no-cache --no-boot-offer
 else
