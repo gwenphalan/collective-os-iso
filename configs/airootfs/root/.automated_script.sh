@@ -152,10 +152,17 @@ seed_target_cider_key() {
   if [[ -f "$CIDER_COLLECTIVE_KEY_FILE" ]]; then
     cp "$CIDER_COLLECTIVE_KEY_FILE" "$target_key_file"
   else
-    curl -fsSL https://repo.cider.sh/RPM-GPG-KEY -o "$target_key_file"
+    if ! curl -fsSL https://repo.cider.sh/RPM-GPG-KEY -o "$target_key_file"; then
+      echo "ERROR: Failed to download Cider Collective key for target system" >&2
+      return 1
+    fi
   fi
 
   arch-chroot /mnt pacman-key --add /etc/pacman.d/keys/cidercollective.asc
+  if ! arch-chroot /mnt pacman-key --list-keys "$CIDER_COLLECTIVE_KEY_ID" >/dev/null 2>&1; then
+    echo "ERROR: Key import failed in target system" >&2
+    return 1
+  fi
   arch-chroot /mnt pacman-key --lsign-key "$CIDER_COLLECTIVE_KEY_ID"
 }
 
