@@ -2,10 +2,72 @@
 
 set -e
 
+# Default AUR packages in case the installer repo does not provide its own list
+DEFAULT_AUR_PACKAGES=(modrinth-app proton-authenticator-bin proton-pass-bin qt5-remoteobjects)
+
 # Note that these are packages installed to the Arch container used to build the ISO.
 pacman-key --init
 pacman --noconfirm -Sy archlinux-keyring
+pacman --noconfirm -Syu
 pacman --noconfirm -Sy archiso git sudo base-devel jq grub
+
+# Provide swap to prevent OOM when building large Rust AUR packages
+SWAPFILE_PATH="${ISO_SWAPFILE:-/swapfile}"
+SWAPFILE_SIZE_GB="${ISO_SWAP_SIZE_GB:-8}"
+SWAP_LOOP_DEVICE=""
+cleanup_swap() {
+  if [[ -n "$SWAP_LOOP_DEVICE" ]]; then
+    swapoff "$SWAP_LOOP_DEVICE" || true
+    losetup -d "$SWAP_LOOP_DEVICE" || true
+  fi
+}
+ensure_loop_devices() {
+  if [[ ! -e /dev/loop-control ]]; then
+    mknod /dev/loop-control c 10 237
+    chmod 660 /dev/loop-control
+  fi
+  for i in $(seq 0 7); do
+    dev="/dev/loop$i"
+    if [[ ! -e "$dev" ]]; then
+      mknod "$dev" b 7 $i
+      chmod 660 "$dev"
+    fi
+  done
+}
+if [[ -z "${SKIP_ISO_SWAP:-}" ]]; then
+  if [[ ! -f "$SWAPFILE_PATH" ]]; then
+    required_kb=$((SWAPFILE_SIZE_GB * 1024 * 1024))
+    available_kb=$(df --output=avail / | tail -n1)
+    if [[ $available_kb -lt $required_kb ]]; then
+      echo "ERROR: Insufficient disk space for ${SWAPFILE_SIZE_GB}GB swap file" >&2
+      exit 1
+    fi
+    dd if=/dev/zero of="$SWAPFILE_PATH" bs=1M count=$((SWAPFILE_SIZE_GB * 1024)) status=none
+    chmod 600 "$SWAPFILE_PATH"
+  fi
+  ensure_loop_devices
+  SWAP_LOOP_DEVICE=$(losetup --show -f "$SWAPFILE_PATH")
+  mkswap -f "$SWAP_LOOP_DEVICE"
+  swapon "$SWAP_LOOP_DEVICE"
+  trap cleanup_swap EXIT
+fi
+
+# Import Cider Collective key for cidercollective repo before using pacman-online.conf
+CIDER_KEY_ID="A0CD6B993438E22634450CDD2A236C3F42A61682"
+if ! pacman-key --list-keys "$CIDER_KEY_ID" >/dev/null 2>&1; then
+  for i in {1..3}; do
+    if curl -fsSL --max-time 30 https://repo.cider.sh/ARCH-GPG-KEY -o /tmp/cider-key.gpg; then
+      break
+    fi
+    if [[ $i -eq 3 ]]; then
+      echo "ERROR: Failed to download CIDER key after 3 attempts" >&2
+      exit 1
+    fi
+    sleep 2
+  done
+  pacman-key --add /tmp/cider-key.gpg
+  pacman-key --lsign-key "$CIDER_KEY_ID"
+fi
 
 # Install omarchy-keyring for package verification during build
 # The [omarchy] repo remains defined in /configs/pacman-online.conf with SigLevel = Optional TrustAll
@@ -40,6 +102,59 @@ if [[ -d /collectiveos ]]; then
   cp -rp /collectiveos "$INSTALLER_DEST"
 else
   git clone -b "$INSTALLER_REF" "https://github.com/$INSTALLER_REPO.git" "$INSTALLER_DEST"
+fi
+
+# Load the list of packages that must be prebuilt by the installer repo
+AUR_PACKAGES=()
+AUR_PACKAGE_FILE="$INSTALLER_DEST/install/collectiveos-aur.packages"
+if [[ -f "$AUR_PACKAGE_FILE" ]]; then
+  mapfile -t AUR_PACKAGES < <(grep -Ev '^\s*(#|$)' "$AUR_PACKAGE_FILE")
+  if [[ ${#AUR_PACKAGES[@]} -eq 0 ]]; then
+    echo "WARNING: $AUR_PACKAGE_FILE is empty; no AUR packages will be injected" >&2
+  fi
+else
+  echo "WARNING: $AUR_PACKAGE_FILE not found; falling back to default AUR package list" >&2
+  AUR_PACKAGES=("${DEFAULT_AUR_PACKAGES[@]}")
+fi
+
+declare -A AUR_PACKAGE_SET=()
+for pkg in "${AUR_PACKAGES[@]}"; do
+  AUR_PACKAGE_SET[$pkg]=1
+done
+
+# Build AUR packages inside the installer repo so they're available to the ISO build
+if [[ -z "${SKIP_LOCAL_AUR_BUILD:-}" ]]; then
+  if [[ -x "$INSTALLER_DEST/scripts/build-local-aur.sh" ]]; then
+    AUR_CARGO_JOBS="${CARGO_BUILD_JOBS:-$(nproc)}"
+    AUR_RUSTFLAGS="${RUSTFLAGS:--Ccodegen-units=2}"
+    echo "==> Building CollectiveOS AUR packages (CARGO_BUILD_JOBS=$AUR_CARGO_JOBS, RUSTFLAGS=$AUR_RUSTFLAGS)"
+
+    AUR_BUILD_USER=${AUR_BUILD_USER:-aurbuilder}
+    if ! id -u "$AUR_BUILD_USER" >/dev/null 2>&1; then
+      useradd -m "$AUR_BUILD_USER"
+    fi
+
+    SUDOERS_FILE="/etc/sudoers.d/collectiveos-aur"
+    if [[ ! -f "$SUDOERS_FILE" ]]; then
+      echo "$AUR_BUILD_USER ALL=(ALL) NOPASSWD: /usr/bin/pacman" >>"$SUDOERS_FILE"
+      chmod 440 $SUDOERS_FILE
+    fi
+
+    chown -R "$AUR_BUILD_USER:$AUR_BUILD_USER" "$INSTALLER_DEST"
+    pushd "$INSTALLER_DEST" >/dev/null
+    if ! runuser -u "$AUR_BUILD_USER" -- env "CARGO_BUILD_JOBS=$AUR_CARGO_JOBS" "RUSTFLAGS=$AUR_RUSTFLAGS" ./scripts/build-local-aur.sh; then
+      popd >/dev/null
+      chown -R root:root "$INSTALLER_DEST"
+      echo "ERROR: build-local-aur.sh failed" >&2
+      exit 1
+    fi
+    popd >/dev/null
+    chown -R root:root "$INSTALLER_DEST"
+  else
+    echo "WARNING: build-local-aur.sh not found; skipping local AUR build" >&2
+  fi
+else
+  echo "==> Skipping local AUR build (SKIP_LOCAL_AUR_BUILD set)"
 fi
 
 # Make log uploader available in the ISO too
@@ -81,10 +196,54 @@ all_packages+=($(grep -v '^#' "$INSTALLER_DEST/install/collectiveos-base.package
 all_packages+=($(grep -v '^#' "$INSTALLER_DEST/install/collectiveos-other.packages" | grep -v '^$'))
 all_packages+=($(grep -v '^#' /builder/archinstall.packages | grep -v '^$'))
 
+# Remove packages that must be provided by the installer repo to avoid pacman fetch failures
+if [[ ${#AUR_PACKAGES[@]} -gt 0 ]]; then
+  filtered_packages=()
+  for pkg in "${all_packages[@]}"; do
+    if [[ -z "${AUR_PACKAGE_SET[$pkg]:-}" ]]; then
+      filtered_packages+=("$pkg")
+    fi
+  done
+  all_packages=("${filtered_packages[@]}")
+fi
+
 # Download all the packages to the offline mirror inside the ISO
 mkdir -p /tmp/offlinedb
-pacman --config /configs/pacman-online.conf --noconfirm -Syw "${all_packages[@]}" --cachedir $offline_mirror_dir/ --dbpath /tmp/offlinedb
-repo-add --new "$offline_mirror_dir/offline.db.tar.gz" "$offline_mirror_dir/"*.pkg.tar.zst
+if [[ ${#all_packages[@]} -gt 0 ]]; then
+  pacman --config /configs/pacman-online.conf --noconfirm -Syw "${all_packages[@]}" --cachedir $offline_mirror_dir/ --dbpath /tmp/offlinedb
+fi
+
+# Copy locally supplied packages built by the installer repository
+missing_aur_pkgs=()
+if [[ ${#AUR_PACKAGES[@]} -gt 0 ]]; then
+  LOCAL_AUR_REPO_DIR="$INSTALLER_DEST/repos/local-aur/x86_64"
+  if [[ -d "$LOCAL_AUR_REPO_DIR" ]]; then
+    for pkg in "${AUR_PACKAGES[@]}"; do
+      pkg_glob="$LOCAL_AUR_REPO_DIR/${pkg}-*.pkg.tar.*"
+      if compgen -G "$pkg_glob" >/dev/null; then
+        cp -u $pkg_glob "$offline_mirror_dir/"
+      else
+        missing_aur_pkgs+=("$pkg")
+      fi
+    done
+  else
+    missing_aur_pkgs=("${AUR_PACKAGES[@]}")
+  fi
+fi
+
+if [[ ${#missing_aur_pkgs[@]} -gt 0 ]]; then
+  echo "ERROR: Missing locally built CollectiveOS packages (build stage incomplete): ${missing_aur_pkgs[*]}" >&2
+  exit 1
+fi
+
+shopt -s nullglob
+offline_pkgs=("$offline_mirror_dir"/*.pkg.tar.zst)
+shopt -u nullglob
+if [[ ${#offline_pkgs[@]} -eq 0 ]]; then
+  echo "ERROR: Offline mirror contains no packages" >&2
+  exit 1
+fi
+repo-add --new "$offline_mirror_dir/offline.db.tar.gz" "${offline_pkgs[@]}"
 
 # Create a symlink to the offline mirror instead of duplicating it.
 # mkarchiso needs packages at /var/cache/collectiveos/mirror/offline in the container,
