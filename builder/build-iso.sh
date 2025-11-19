@@ -13,9 +13,18 @@ ensure_aur_build_user() {
     useradd -m "$AUR_BUILD_USER"
   fi
 
-  if [[ ! -f "$AUR_SUDOERS_FILE" ]]; then
-    echo "$AUR_BUILD_USER ALL=(ALL) NOPASSWD: /usr/bin/pacman" >>"$AUR_SUDOERS_FILE"
-    chmod 440 "$AUR_SUDOERS_FILE"
+  local sudoers_entry="$AUR_BUILD_USER ALL=(ALL) NOPASSWD: /usr/bin/pacman"
+  if [[ ! -f "$AUR_SUDOERS_FILE" ]] || ! grep -Fxq "$sudoers_entry" "$AUR_SUDOERS_FILE"; then
+    local tmp_sudoers
+    tmp_sudoers=$(mktemp)
+    printf '%s\n' "$sudoers_entry" >"$tmp_sudoers"
+    if ! visudo -cf "$tmp_sudoers" >/dev/null; then
+      echo "ERROR: Failed to validate sudoers entry for $AUR_BUILD_USER" >&2
+      rm -f "$tmp_sudoers"
+      exit 1
+    fi
+    install -m 440 "$tmp_sudoers" "$AUR_SUDOERS_FILE"
+    rm -f "$tmp_sudoers"
   fi
 }
 
@@ -43,7 +52,7 @@ build_override_packages_for_missing() {
     cp -r "$src" "$build_dir"
     chown -R "$AUR_BUILD_USER:$AUR_BUILD_USER" "$build_dir"
 
-    if ! runuser -u "$AUR_BUILD_USER" -- bash -lc "cd '$build_dir' && makepkg -sf --noconfirm"; then
+    if ! runuser -u "$AUR_BUILD_USER" -- bash -lc "cd '$build_dir' && makepkg -s --noconfirm"; then
       echo "WARNING: Failed to build override package $pkg" >&2
       next_missing+=("$pkg")
       continue
@@ -61,7 +70,7 @@ build_override_packages_for_missing() {
     cp -u "${built_pkgs[@]}" "$offline_mirror_dir/"
     local installer_repo_local_aur="$INSTALLER_DEST/repos/local-aur/x86_64"
     mkdir -p "$installer_repo_local_aur"
-    cp -u "${built_pkgs[@]}" "$installer_repo_local_aur/"
+    cp "${built_pkgs[@]}" "$installer_repo_local_aur/"
   done
 
   missing_aur_pkgs=("${next_missing[@]}")
@@ -109,7 +118,8 @@ if [[ -z "${SKIP_ISO_SWAP:-}" ]]; then
   fi
   ensure_loop_devices
   SWAP_LOOP_DEVICE=$(losetup --show -f "$SWAPFILE_PATH")
-  mkswap -f "$SWAP_LOOP_DEVICE"
+  # mkswap performs sanity checks; the loop device was freshly created so forcing is unnecessary.
+  mkswap "$SWAP_LOOP_DEVICE"
   swapon "$SWAP_LOOP_DEVICE"
   trap cleanup_swap EXIT
 fi

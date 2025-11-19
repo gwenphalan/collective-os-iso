@@ -9,6 +9,7 @@ source=("$pkgname-$pkgver.tar.gz::$url/-/archive/$pkgver/$pkgname-$pkgver.tar.gz
 license=("GPL-3.0-or-later")
 _jre_version=17
 _jdk_version=21
+_java_home="/usr/lib/jvm/java-${_jdk_version}-openjdk"
 depends=(
 	'bash'
 	'java-runtime-headless>='${_jre_version}
@@ -33,24 +34,27 @@ sha256sums=('532b7918c1cd5d63c177e7456823c0fa1e676d336c9fd0ae8600be6f3465e844')
 
 prepare() {
 	unset JAVA_OPTS JDK_JAVA_OPTIONS JAVA_TOOL_OPTIONS
-	JAVA_HOME=/usr/lib/jvm/java-${_jdk_version}-openjdk
-	if ! [ -x "${JAVA_HOME}/bin/javac" ]; then
-		echo "Error: ${JAVA_HOME}/bin/javac not found." >&2
+	local java_home="$_java_home"
+	if ! [ -x "${java_home}/bin/javac" ]; then
+		echo "Error: ${java_home}/bin/javac not found." >&2
 		return 1
 	fi
 }
 
 build() {
 	cd "$srcdir/${pkgname}-${pkgver}"
-	JAVA_HOME=/usr/lib/jvm/java-${_jdk_version}-openjdk mvn clean package
+	JAVA_HOME="$_java_home" mvn clean package
 }
 
 package() {
 	cd "$srcdir/${pkgname}-${pkgver}"
-	src_path="install/arch-linux/"
-	install -dm 755 $src_path/usr/share/java/
-	install -Dm 644 target/limine-snapper-sync.jar $src_path/usr/share/java/
-	install -dm 755 $src_path/usr/share/doc/limine-snapper-sync/
-	cp -r README.md CHANGELOG.md screenshots $src_path/usr/share/doc/limine-snapper-sync/
-	cp -a $src_path/usr $src_path/etc "$pkgdir"
+	local src_path="$srcdir/${pkgname}-${pkgver}/install/arch-linux"
+	install -dm 755 "$src_path/usr/share/java/"
+	install -Dm 644 target/limine-snapper-sync.jar "$src_path/usr/share/java/"
+	install -dm 755 "$src_path/usr/share/doc/limine-snapper-sync/"
+	cp -r README.md CHANGELOG.md screenshots "$src_path/usr/share/doc/limine-snapper-sync/"
+	cp -a "$src_path/usr" "$src_path/etc" "$pkgdir"
+	if [[ -f LICENSE ]]; then
+		install -Dm 644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+	fi
 }
