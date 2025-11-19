@@ -2,6 +2,58 @@
 set -euo pipefail
 
 COLLECTIVEOS_ACCENT="#00a86b"
+CIDER_COLLECTIVE_KEY_FINGERPRINT="A0CD6B993438E22634450CDD2A236C3F42A61682"
+CIDER_COLLECTIVE_KEY_ID="${CIDER_COLLECTIVE_KEY_FINGERPRINT: -16}"
+CIDER_COLLECTIVE_KEY_FILE="/etc/pacman.d/keys/cidercollective.asc"
+
+# Import and trust the Cider Collective repo key so pacman never prompts mid-install.
+ensure_cidercollective_key() {
+  if pacman-key --list-keys "$CIDER_COLLECTIVE_KEY_FINGERPRINT" >/dev/null 2>&1; then
+    return
+  fi
+
+  local key_source=""
+  local temp_key=""
+
+  if [[ -f "$CIDER_COLLECTIVE_KEY_FILE" ]]; then
+    key_source="$CIDER_COLLECTIVE_KEY_FILE"
+  else
+    temp_key="$(mktemp /tmp/cider-key.XXXXXX)"
+    if ! curl -fsSL https://repo.cider.sh/RPM-GPG-KEY -o "$temp_key"; then
+      echo "Failed to download the Cider Collective repo key" >&2
+      rm -f "$temp_key"
+      return 1
+    fi
+
+    local downloaded_fingerprint
+    if ! downloaded_fingerprint="$(gpg --batch --with-colons --show-keys "$temp_key" | awk -F: '/^fpr:/ {print $10; exit}')" || [[ -z "$downloaded_fingerprint" ]]; then
+      echo "Unable to determine fingerprint for downloaded Cider Collective repo key" >&2
+      rm -f "$temp_key"
+      return 1
+    fi
+
+    if [[ "$downloaded_fingerprint" != "$CIDER_COLLECTIVE_KEY_FINGERPRINT" ]]; then
+      echo "Downloaded Cider Collective repo key fingerprint mismatch" >&2
+      rm -f "$temp_key"
+      return 1
+    fi
+
+    key_source="$temp_key"
+  fi
+
+  if ! pacman-key --add "$key_source"; then
+    echo "Failed to import the Cider Collective repo key" >&2
+    [[ -n "$temp_key" ]] && rm -f "$temp_key"
+    return 1
+  fi
+
+  [[ -n "$temp_key" ]] && rm -f "$temp_key"
+
+  if ! pacman-key --lsign-key "$CIDER_COLLECTIVE_KEY_ID"; then
+    echo "Failed to locally sign the Cider Collective repo key" >&2
+    return 1
+  fi
+}
 
 use_collectiveos_helpers() {
   export COLLECTIVEOS_PATH="/root/collectiveos"
@@ -74,6 +126,10 @@ install_base_system() {
   pacman-key --init
   pacman-key --populate archlinux
   pacman-key --populate omarchy
+  if ! ensure_cidercollective_key; then
+    echo "ERROR: Failed to import and locally sign the Cider Collective repo key" >&2
+    return 1
+  fi
 
   # Sync the offline database so pacman can find packages
   pacman -Sy --noconfirm
@@ -112,6 +168,12 @@ EOF
   chmod 440 /mnt/etc/sudoers.d/99-collectiveos-installer
 
   # Copy the local CollectiveOS repo to the user's home directory
+  # Copy the local CollectiveOS repo to the user's home directory
+  if ! seed_target_cider_key; then
+    echo "ERROR: Failed to seed Cider Collective key in target system" >&2
+    return 1
+  fi
+  mkdir -p /mnt/home/$COLLECTIVEOS_USER/.local/share/
   mkdir -p /mnt/home/$COLLECTIVEOS_USER/.local/share/
   cp -r /root/collectiveos /mnt/home/$COLLECTIVEOS_USER/.local/share/
 
@@ -121,6 +183,35 @@ EOF
   find /mnt/home/$COLLECTIVEOS_USER/.local/share/collectiveos -type f -path "*/bin/*" -exec chmod +x {} \;
   chmod +x /mnt/home/$COLLECTIVEOS_USER/.local/share/collectiveos/boot.sh 2>/dev/null || true
   chmod +x /mnt/home/$COLLECTIVEOS_USER/.local/share/collectiveos/default/waybar/indicators/screen-recording.sh 2>/dev/null || true
+}
+
+seed_target_cider_key() {
+  local target_key_dir="/mnt/etc/pacman.d/keys"
+  local target_key_file="$target_key_dir/cidercollective.asc"
+
+  mkdir -p "$target_key_dir"
+
+  if [[ -f "$CIDER_COLLECTIVE_KEY_FILE" ]]; then
+    cp "$CIDER_COLLECTIVE_KEY_FILE" "$target_key_file"
+  else
+    if ! curl -fsSL https://repo.cider.sh/RPM-GPG-KEY -o "$target_key_file"; then
+      echo "ERROR: Failed to download Cider Collective key for target system" >&2
+      return 1
+    fi
+  fi
+
+  if ! arch-chroot /mnt pacman-key --add /etc/pacman.d/keys/cidercollective.asc; then
+    echo "ERROR: Failed to import the Cider Collective key inside the target system" >&2
+    return 1
+  fi
+  if ! arch-chroot /mnt pacman-key --list-keys "$CIDER_COLLECTIVE_KEY_FINGERPRINT" >/dev/null 2>&1; then
+    echo "ERROR: Key import failed in target system" >&2
+    return 1
+  fi
+  if ! arch-chroot /mnt pacman-key --lsign-key "$CIDER_COLLECTIVE_KEY_ID"; then
+    echo "ERROR: Failed to locally sign the Cider Collective key in the target system" >&2
+    return 1
+  fi
 }
 
 chroot_bash() {

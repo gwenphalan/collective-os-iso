@@ -6,28 +6,51 @@ source "$COLLECTIVEOS_INSTALL/helpers/all.sh"
 # Shades of Jade palette (see themes/collective-os)
 COLLECTIVEOS_BG_DARK="#00110b"
 COLLECTIVEOS_BG_PANEL="#114b3b"
-COLLECTIVEOS_BG_PANEL_ALT="#002215"
+COLLECTIVEOS_BG_PANEL_ALT="#2a7a65"
 COLLECTIVEOS_TEXT="#e6f6f0"
-COLLECTIVEOS_MUTED="#8a8a8d"
+COLLECTIVEOS_MUTED="#cceee1"
 COLLECTIVEOS_ACCENT="#00a86b"
 COLLECTIVEOS_ACCENT_DARK="#006540"
-COLLECTIVEOS_ACCENT_LIGHT="#66cba6"
+COLLECTIVEOS_ACCENT_LIGHT="#80d4b5"
 COLLECTIVEOS_HIGHLIGHT="#C3FCB8"
 COLLECTIVEOS_SELECTION="#CCCC99"
 COLLECTIVEOS_WARNING="#ff3370"
+
+ESTIMATED_FORM_HEIGHT=22
+VERTICAL_PADDING=$(( (TERM_HEIGHT - LOGO_HEIGHT - ESTIMATED_FORM_HEIGHT) / 2 ))
+if ((VERTICAL_PADDING < 0)); then
+  VERTICAL_PADDING=0
+fi
+
+apply_vertical_padding() {
+  for ((i = 0; i < VERTICAL_PADDING; i++)); do
+    echo
+  done
+}
+
+h_indent() {
+  if [[ -n "${PADDING_LEFT_SPACES:-}" ]]; then
+    sed "s/^/${PADDING_LEFT_SPACES}/"
+  else
+    cat
+  fi
+}
 
 # Ensure tzupdate is available for guessing timezone
 command -v tzupdate >/dev/null || sudo pacman -Sy --noconfirm tzupdate
 
 abort() {
-  gum style --foreground "$COLLECTIVEOS_WARNING" --border thick --border-foreground "$COLLECTIVEOS_WARNING" --padding "1 2" "${1:-Aborted installation}"
+  clear_logo
+  apply_vertical_padding
+  gum style --foreground "$COLLECTIVEOS_WARNING" --border thick --border-foreground "$COLLECTIVEOS_WARNING" --padding "1 2" "${1:-Aborted installation}" | h_indent
   echo
-  gum style --foreground "$COLLECTIVEOS_TEXT" --background "$COLLECTIVEOS_BG_PANEL_ALT" --padding "0 1" "You can retry later by running: ./.automated_script.sh"
+  gum style --foreground "$COLLECTIVEOS_TEXT" --background "$COLLECTIVEOS_BG_PANEL_ALT" --padding "0 1" "You can retry later by running: ./.automated_script.sh" | h_indent
   exit 1
 }
 
 step() {
   clear_logo
+  apply_vertical_padding
   echo
   gum style \
     --border double \
@@ -35,18 +58,19 @@ step() {
     --foreground "$COLLECTIVEOS_TEXT" \
     --background "$COLLECTIVEOS_BG_PANEL" \
     --padding "1 2" \
-    "$1"
+    "$1" | h_indent
   echo
 }
 
 notice() {
   clear_logo
+  apply_vertical_padding
   echo
   gum spin \
     --spinner "pulse" \
     --spinner.foreground "$COLLECTIVEOS_ACCENT_LIGHT" \
     --title.foreground "$COLLECTIVEOS_WARNING" \
-    --title "$1" -- sleep "${2:-2}"
+    --title "$1" -- sleep "${2:-2}" | h_indent
   echo
 }
 
@@ -121,7 +145,7 @@ user_form() {
   step "Let's setup your CollectiveOS user account..."
 
   while true; do
-    username=$(gum input --placeholder "Alphanumeric without spaces (like dhh)" --prompt.foreground="$COLLECTIVEOS_ACCENT" --prompt "Username> ") || abort
+    username=$(gum input --placeholder "Alphanumeric without spaces (like dhh)" --prompt.foreground="$COLLECTIVEOS_TEXT" --prompt "Username> ") || abort
 
     if [[ "$username" =~ ^[a-z_][a-z0-9_-]*[$]?$ ]]; then
       break
@@ -131,8 +155,8 @@ user_form() {
   done
 
   while true; do
-    password=$(gum input --placeholder "Used for user + root + encryption" --prompt.foreground="$COLLECTIVEOS_ACCENT" --password --prompt "Password> ") || abort
-    password_confirmation=$(gum input --placeholder "Must match the password you just typed" --prompt.foreground="$COLLECTIVEOS_ACCENT" --password --prompt "Confirm> ") || abort
+    password=$(gum input --placeholder "Used for user + root + encryption" --prompt.foreground="$COLLECTIVEOS_TEXT" --password --prompt "Password> ") || abort
+    password_confirmation=$(gum input --placeholder "Must match the password you just typed" --prompt.foreground="$COLLECTIVEOS_TEXT" --password --prompt "Confirm> ") || abort
 
     if [[ -n "$password" && "$password" == "$password_confirmation" ]]; then
       break
@@ -146,11 +170,11 @@ user_form() {
   # Hash the password using yescrypt
   password_hash=$(printf '%s' "$password" | openssl passwd -6 -stdin)
 
-  full_name=$(gum input --placeholder "Used for git authentication (hit return to skip)" --prompt.foreground="$COLLECTIVEOS_ACCENT_LIGHT" --prompt "Full name> ")
-  email_address=$(gum input --placeholder "Used for git authentication (hit return to skip)" --prompt.foreground="$COLLECTIVEOS_ACCENT_LIGHT" --prompt "Email address> ")
+  full_name=$(gum input --placeholder "Used for git authentication (hit return to skip)" --prompt.foreground="$COLLECTIVEOS_TEXT" --prompt "Full name> ")
+  email_address=$(gum input --placeholder "Used for git authentication (hit return to skip)" --prompt.foreground="$COLLECTIVEOS_TEXT" --prompt "Email address> ")
 
   while true; do
-    hostname=$(gum input --placeholder "Alphanumeric without spaces (or return for 'collectiveos')" --prompt.foreground="$COLLECTIVEOS_ACCENT_DARK" --prompt "Hostname> ")
+    hostname=$(gum input --placeholder "Alphanumeric without spaces (or return for 'collectiveos')" --prompt.foreground="$COLLECTIVEOS_TEXT" --prompt "Hostname> ")
 
     if [[ "$hostname" =~ ^[A-Za-z_][A-Za-z0-9_-]*\$?$ ]]; then
       break
@@ -186,7 +210,7 @@ Timezone,$timezone
 Keyboard,$keyboard" |
     gum table -s "," -p |
     gum style --foreground "$COLLECTIVEOS_TEXT" --background "$COLLECTIVEOS_BG_PANEL_ALT" --padding "0 2" |
-    sed "s/^/${PADDING_LEFT_SPACES}/"
+    h_indent
 
   echo
   if gum confirm --negative "No, change it" "Does this look right?"; then
@@ -247,7 +271,7 @@ disk_form() {
 disk_form
 
 while true; do
-  gum style --foreground "$COLLECTIVEOS_WARNING" --padding "0 1" "Everything will be overwritten. There is no recovery possible."
+  gum style --foreground "$COLLECTIVEOS_WARNING" --padding "0 1" "Everything will be overwritten. There is no recovery possible." | h_indent
 
   echo
   if gum confirm --affirmative "Yes, format disk" --negative "No, change it" "Confirm overwriting ${disk}"; then

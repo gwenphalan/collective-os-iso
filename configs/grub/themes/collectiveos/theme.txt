@@ -1,0 +1,44 @@
+# CollectiveOS GRUB theme
+
+desktop-image: "background.png"
+desktop-color: "#00110b"
+terminal-font: "../fonts/unicode.pf2"
+terminal-left: "5%"
+terminal-top: "60%"
+terminal-width: "90%"
+terminal-height: "35%"
+terminal-border: "0"
+message-font: "../fonts/unicode.pf2"
+message-color: "#e6f6f0"
+message-bg-color: "#00110b"
+title-font: "../fonts/unicode.pf2"
+title-text: "CollectiveOS"
+title-color: "#e6f6f0"
+title-bg-color: "#00110b"
+title-align: "center"
+title-y: 12%
+
++ boot_menu {
+  left = 50%-240
+  top = 32%
+  width = 480
+  height = 42%
+  item_height = 42
+  item_padding = 6
+  item_spacing = 6
+  item_font = "../fonts/unicode.pf2"
+  item_color = "#cceee1"
+  selected_item_font = "../fonts/unicode.pf2"
+  selected_item_color = "#e6f6f0"
+  scrollbar = false
+}
+
++ label {
+  left = 0
+  top = 100%-32
+  width = 100%
+  align = "center"
+  text = "Use arrow keys to select, Enter to boot • Press e for options"
+  color = "#80d4b5"
+  font = "../fonts/unicode.pf2"
+}
