@@ -8,13 +8,13 @@ pacman --noconfirm -Sy archlinux-keyring
 pacman --noconfirm -Sy archiso git sudo base-devel jq grub
 
 # Install omarchy-keyring for package verification during build
-# The [omarchy] repo is defined in /configs/pacman-online.conf with SigLevel = Optional TrustAll
+# The [omarchy] repo remains defined in /configs/pacman-online.conf with SigLevel = Optional TrustAll
 pacman --config /configs/pacman-online.conf --noconfirm -Sy omarchy-keyring
 pacman-key --populate omarchy
 
 # Setup build locations
 build_cache_dir="/var/cache"
-offline_mirror_dir="$build_cache_dir/airootfs/var/cache/omarchy/mirror/offline"
+offline_mirror_dir="$build_cache_dir/airootfs/var/cache/collectiveos/mirror/offline"
 mkdir -p $build_cache_dir/
 mkdir -p $offline_mirror_dir/
 
@@ -30,20 +30,25 @@ rm -rf "$build_cache_dir/airootfs/etc/xdg/reflector"
 # Bring in our configs
 cp -r /configs/* $build_cache_dir/
 
-# Setup Omarchy itself
-if [[ -d /omarchy ]]; then
-  cp -rp /omarchy "$build_cache_dir/airootfs/root/omarchy"
+# Determine installer source
+INSTALLER_REPO="${COLLECTIVEOS_INSTALLER_REPO:-gwenphalan/collective-os}"
+INSTALLER_REF="${COLLECTIVEOS_INSTALLER_REF:-master}"
+
+# Setup CollectiveOS itself
+INSTALLER_DEST="$build_cache_dir/airootfs/root/collectiveos"
+if [[ -d /collectiveos ]]; then
+  cp -rp /collectiveos "$INSTALLER_DEST"
 else
-  git clone -b $OMARCHY_INSTALLER_REF https://github.com/$OMARCHY_INSTALLER_REPO.git "$build_cache_dir/airootfs/root/omarchy"
+  git clone -b "$INSTALLER_REF" "https://github.com/$INSTALLER_REPO.git" "$INSTALLER_DEST"
 fi
 
 # Make log uploader available in the ISO too
 mkdir -p "$build_cache_dir/airootfs/usr/local/bin/"
-cp "$build_cache_dir/airootfs/root/omarchy/bin/omarchy-upload-log" "$build_cache_dir/airootfs/usr/local/bin/omarchy-upload-log"
+cp "$INSTALLER_DEST/bin/collectiveos-upload-log" "$build_cache_dir/airootfs/usr/local/bin/collectiveos-upload-log"
 
-# Copy the Omarchy Plymouth theme to the ISO
-mkdir -p "$build_cache_dir/airootfs/usr/share/plymouth/themes/omarchy"
-cp -r "$build_cache_dir/airootfs/root/omarchy/default/plymouth/"* "$build_cache_dir/airootfs/usr/share/plymouth/themes/omarchy/"
+# Copy the CollectiveOS Plymouth theme to the ISO
+mkdir -p "$build_cache_dir/airootfs/usr/share/plymouth/themes/collectiveos"
+cp -r "$INSTALLER_DEST/default/plymouth/"* "$build_cache_dir/airootfs/usr/share/plymouth/themes/collectiveos/"
 
 # Download and verify Node.js binary for offline installation
 NODE_DIST_URL="https://nodejs.org/dist/latest"
@@ -72,8 +77,8 @@ printf '%s\n' "${arch_packages[@]}" >>"$build_cache_dir/packages.x86_64"
 
 # Build list of all the packages needed for the offline mirror
 all_packages=($(cat "$build_cache_dir/packages.x86_64"))
-all_packages+=($(grep -v '^#' "$build_cache_dir/airootfs/root/omarchy/install/omarchy-base.packages" | grep -v '^$'))
-all_packages+=($(grep -v '^#' "$build_cache_dir/airootfs/root/omarchy/install/omarchy-other.packages" | grep -v '^$'))
+all_packages+=($(grep -v '^#' "$INSTALLER_DEST/install/collectiveos-base.packages" | grep -v '^$'))
+all_packages+=($(grep -v '^#' "$INSTALLER_DEST/install/collectiveos-other.packages" | grep -v '^$'))
 all_packages+=($(grep -v '^#' /builder/archinstall.packages | grep -v '^$'))
 
 # Download all the packages to the offline mirror inside the ISO
@@ -82,10 +87,10 @@ pacman --config /configs/pacman-online.conf --noconfirm -Syw "${all_packages[@]}
 repo-add --new "$offline_mirror_dir/offline.db.tar.gz" "$offline_mirror_dir/"*.pkg.tar.zst
 
 # Create a symlink to the offline mirror instead of duplicating it.
-# mkarchiso needs packages at /var/cache/omarchy/mirror/offline in the container,
-# but they're actually in $build_cache_dir/airootfs/var/cache/omarchy/mirror/offline
-mkdir -p /var/cache/omarchy/mirror
-ln -s "$offline_mirror_dir" "/var/cache/omarchy/mirror/offline"
+# mkarchiso needs packages at /var/cache/collectiveos/mirror/offline in the container,
+# but they're actually in $build_cache_dir/airootfs/var/cache/collectiveos/mirror/offline
+mkdir -p /var/cache/collectiveos/mirror
+ln -sfn "$offline_mirror_dir" "/var/cache/collectiveos/mirror/offline"
 
 # Copy the pacman.conf to the ISO's /etc directory so the live environment uses our
 # same config when booted
