@@ -22,20 +22,20 @@ ensure_cidercollective_key() {
     if ! curl -fsSL https://repo.cider.sh/RPM-GPG-KEY -o "$temp_key"; then
       echo "Failed to download the Cider Collective repo key" >&2
       rm -f "$temp_key"
-      exit 1
+      return 1
     fi
 
     local downloaded_fingerprint
     if ! downloaded_fingerprint="$(gpg --batch --with-colons --show-keys "$temp_key" | awk -F: '/^fpr:/ {print $10; exit}')" || [[ -z "$downloaded_fingerprint" ]]; then
       echo "Unable to determine fingerprint for downloaded Cider Collective repo key" >&2
       rm -f "$temp_key"
-      exit 1
+      return 1
     fi
 
     if [[ "$downloaded_fingerprint" != "$CIDER_COLLECTIVE_KEY_FINGERPRINT" ]]; then
       echo "Downloaded Cider Collective repo key fingerprint mismatch" >&2
       rm -f "$temp_key"
-      exit 1
+      return 1
     fi
 
     key_source="$temp_key"
@@ -44,14 +44,14 @@ ensure_cidercollective_key() {
   if ! pacman-key --add "$key_source"; then
     echo "Failed to import the Cider Collective repo key" >&2
     [[ -n "$temp_key" ]] && rm -f "$temp_key"
-    exit 1
+    return 1
   fi
 
   [[ -n "$temp_key" ]] && rm -f "$temp_key"
 
   if ! pacman-key --lsign-key "$CIDER_COLLECTIVE_KEY_ID"; then
     echo "Failed to locally sign the Cider Collective repo key" >&2
-    exit 1
+    return 1
   fi
 }
 
@@ -126,7 +126,10 @@ install_base_system() {
   pacman-key --init
   pacman-key --populate archlinux
   pacman-key --populate omarchy
-  ensure_cidercollective_key
+  if ! ensure_cidercollective_key; then
+    echo "ERROR: Failed to import and locally sign the Cider Collective repo key" >&2
+    return 1
+  fi
 
   # Sync the offline database so pacman can find packages
   pacman -Sy --noconfirm
@@ -192,7 +195,10 @@ seed_target_cider_key() {
     fi
   fi
 
-  arch-chroot /mnt pacman-key --add /etc/pacman.d/keys/cidercollective.asc
+  if ! arch-chroot /mnt pacman-key --add /etc/pacman.d/keys/cidercollective.asc; then
+    echo "ERROR: Failed to import the Cider Collective key inside the target system" >&2
+    return 1
+  fi
   if ! arch-chroot /mnt pacman-key --list-keys "$CIDER_COLLECTIVE_KEY_ID" >/dev/null 2>&1; then
     echo "ERROR: Key import failed in target system" >&2
     return 1
