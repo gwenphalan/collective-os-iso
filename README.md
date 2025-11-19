@@ -2,10 +2,6 @@
 
 The CollectiveOS ISO streamlines the installation of CollectiveOS, our customized fork of Omarchy. It includes the CollectiveOS Configurator as a front-end to archinstall and automatically launches the [CollectiveOS installer](https://github.com/gwenphalan/collective-os) after the base Arch system is prepared.
 
-## Downloading the latest ISO
-
-See the ISO link on [omarchy.org](https://omarchy.org).
-
 ## Creating the ISO
 
 Run `./bin/collectiveos-iso-make` and the output goes into `./release`. You can build from your local $COLLECTIVEOS_PATH for testing by using `--local-source` or from a checkout of the dev branch (instead of master) by using `--dev`.
