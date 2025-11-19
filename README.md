@@ -34,10 +34,6 @@ Run `./bin/collectiveos-iso-boot [release/collectiveos.iso]`.
 
 Run `./bin/collectiveos-iso-sign [gpg-user] [release/collectiveos.iso]`.
 
-## Uploading the ISO
-
-Run `./bin/collectiveos-iso-upload [release/collectiveos.iso]`. This requires you've configured rclone (use `rclone config`).
-
 ## Full release of the ISO
 
-Run `./bin/collectiveos-iso-release` to create, test, sign, and upload the ISO in one flow.
+Run `./bin/collectiveos-iso-release` to create, test, and sign the ISO in one flow.
