@@ -10,11 +10,11 @@ terminal-height: "35%"
 terminal-border: "0"
 message-font: "../fonts/unicode.pf2"
 message-color: "#e6f6f0"
-message-bg-color: "#00110b"
+message-bg-color: "#114b3b"
 title-font: "../fonts/unicode.pf2"
 title-text: "CollectiveOS"
 title-color: "#e6f6f0"
-title-bg-color: "#00110b"
+title-bg-color: "#114b3b"
 title-align: "center"
 title-y: 12%
 
@@ -28,8 +28,10 @@ title-y: 12%
   item_spacing = 6
   item_font = "../fonts/unicode.pf2"
   item_color = "#cceee1"
+  item_bg_color = "#114b3b"
   selected_item_font = "../fonts/unicode.pf2"
-  selected_item_color = "#e6f6f0"
+  selected_item_color = "#00110b"
+  selected_item_bg_color = "#C3FCB8"
   scrollbar = false
 }
 

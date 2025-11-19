@@ -433,7 +433,10 @@ cat <<-_EOF_ >user_configuration.json
     "packages": [
         "base-devel",
         "git",
-        "omarchy-keyring"
+        "omarchy-keyring",
+        "limine",
+        "limine-snapper-sync",
+        "limine-mkinitcpio-hook"
     ],
     "profile_config": {
         "gfx_driver": null,
