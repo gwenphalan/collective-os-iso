@@ -32,9 +32,8 @@ sha256sums=('e2c6281e5e833b67f3f983e46726b4872167d3087740bf53b34d8f831d1fad28')
 
 prepare() {
 	unset JAVA_OPTS JDK_JAVA_OPTIONS JAVA_TOOL_OPTIONS
-	JAVA_HOME=/usr/lib/jvm/java-${_jdk_version}-openjdk
-	if ! command -v ${JAVA_HOME}/bin/javac >/dev/null 2>&1; then
-		echo "Error: ${JAVA_HOME}/bin/javac not found." >&2
+	if ! command -v javac >/dev/null 2>&1; then
+		echo "Error: javac not found in PATH." >&2
 		return 1
 	fi
 }
@@ -53,5 +52,5 @@ package() {
 	install -Dm 644 target/limine-entry-tool*.jar $src_path/usr/share/java/
 	install -dm 755 $src_path/usr/share/doc/${pkgname}/
 	cp -r README.md CHANGELOG.md $src_path/usr/share/doc/${pkgname}/
-	cp -r $src_path/usr $src_path/etc "$pkgdir"
+	cp -a $src_path/usr $src_path/etc "$pkgdir"
 }
