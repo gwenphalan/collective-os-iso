@@ -36,6 +36,12 @@ ensure_loop_devices() {
 }
 if [[ -z "${SKIP_ISO_SWAP:-}" ]]; then
   if [[ ! -f "$SWAPFILE_PATH" ]]; then
+    required_kb=$((SWAPFILE_SIZE_GB * 1024 * 1024))
+    available_kb=$(df --output=avail / | tail -n1)
+    if [[ $available_kb -lt $required_kb ]]; then
+      echo "ERROR: Insufficient disk space for ${SWAPFILE_SIZE_GB}GB swap file" >&2
+      exit 1
+    fi
     dd if=/dev/zero of="$SWAPFILE_PATH" bs=1M count=$((SWAPFILE_SIZE_GB * 1024)) status=none
     chmod 600 "$SWAPFILE_PATH"
   fi
@@ -49,7 +55,16 @@ fi
 # Import Cider Collective key for cidercollective repo before using pacman-online.conf
 CIDER_KEY_ID="A0CD6B993438E22634450CDD2A236C3F42A61682"
 if ! pacman-key --list-keys "$CIDER_KEY_ID" >/dev/null 2>&1; then
-  curl -fsSL https://repo.cider.sh/ARCH-GPG-KEY -o /tmp/cider-key.gpg
+  for i in {1..3}; do
+    if curl -fsSL --max-time 30 https://repo.cider.sh/ARCH-GPG-KEY -o /tmp/cider-key.gpg; then
+      break
+    fi
+    if [[ $i -eq 3 ]]; then
+      echo "ERROR: Failed to download CIDER key after 3 attempts" >&2
+      exit 1
+    fi
+    sleep 2
+  done
   pacman-key --add /tmp/cider-key.gpg
   pacman-key --lsign-key "$CIDER_KEY_ID"
 fi
@@ -110,7 +125,7 @@ done
 # Build AUR packages inside the installer repo so they're available to the ISO build
 if [[ -z "${SKIP_LOCAL_AUR_BUILD:-}" ]]; then
   if [[ -x "$INSTALLER_DEST/scripts/build-local-aur.sh" ]]; then
-    AUR_CARGO_JOBS="${CARGO_BUILD_JOBS:-1}"
+    AUR_CARGO_JOBS="${CARGO_BUILD_JOBS:-$(nproc)}"
     AUR_RUSTFLAGS="${RUSTFLAGS:--Ccodegen-units=2}"
     echo "==> Building CollectiveOS AUR packages (CARGO_BUILD_JOBS=$AUR_CARGO_JOBS, RUSTFLAGS=$AUR_RUSTFLAGS)"
 
