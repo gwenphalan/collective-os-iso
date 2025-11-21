@@ -1,10 +1,10 @@
-# Omarchy ISO
+# CollectiveOS ISO (fork of omacom-io/omarchy-iso)
 
-The Omarchy ISO streamlines [the installation of Omarchy](https://learn.omacom.io/2/the-omarchy-manual/50/getting-started). It includes the Omarchy Configurator as a front-end to archinstall and automatically launches the [Omarchy Installer](https://github.com/basecamp/omarchy) after base arch has been setup.
+This project is a fork of `omacom-io/omarchy-iso`, used as the base for building a CollectiveOS ISO. It still uses the Omarchy installer from `basecamp/omarchy` and the upstream `[omarchy]` pacman repository (plus `omarchy-keyring`) for now.
 
-## Downloading the latest ISO
+## Downloading the ISO
 
-See the ISO link on [omarchy.org](https://omarchy.org).
+There is currently no official CollectiveOS ISO download. Build locally using the instructions below.
 
 ## Creating the ISO
 
@@ -12,7 +12,7 @@ Run `./bin/omarchy-iso-make` and the output goes into `./release`. You can build
 
 ### Environment Variables
 
-You can customize the repositories used during the build process by passing in variables:
+You can customize the installer source by passing in variables (defaults are intentionally kept pointing at the upstream Omarchy installer until CollectiveOS replaces it):
 
 - `OMARCHY_INSTALLER_REPO` - GitHub repository for the installer (default: `basecamp/omarchy`)
 - `OMARCHY_INSTALLER_REF` - Git ref (branch/tag) for the installer (default: `master`)
@@ -28,7 +28,7 @@ Run `./bin/omarchy-iso-boot [release/omarchy.iso]`.
 
 ## Legacy release helpers
 
-Signing and upload helpers now live in `contrib/omarchy-legacy/bin/` and are **not** invoked by default. To sign or upload, call them explicitly or set `UPLOAD_TO_OMARCHY=true` when running `./bin/omarchy-iso-make`.
+Legacy Omarchy signing/upload tooling is preserved in `contrib/omarchy-legacy/bin/` for reference. It is **disabled by default**; to use it, call the scripts directly or set `UPLOAD_TO_OMARCHY=true` when running `./bin/omarchy-iso-make`.
 
 ## Cleanup documentation
 
