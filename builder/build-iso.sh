@@ -9,6 +9,7 @@ pacman --noconfirm -Sy archiso git sudo base-devel jq grub
 
 # Install omarchy-keyring for package verification during build
 # The [omarchy] repo is defined in /configs/pacman-online.conf with SigLevel = Optional TrustAll
+# NOTE: This fork currently depends on the external [omarchy] pacman repository until the installer is decoupled.
 pacman --config /configs/pacman-online.conf --noconfirm -Sy omarchy-keyring
 pacman-key --populate omarchy
 
@@ -30,6 +31,9 @@ rm -rf "$build_cache_dir/airootfs/etc/xdg/reflector"
 # Bring in our configs
 cp -r /configs/* $build_cache_dir/
 
+# Control whether Omarchy-branded assets (upload helper, Plymouth theme) are copied into the ISO.
+COPY_OMARCHY_ASSETS=${COPY_OMARCHY_ASSETS:-true}
+
 # Setup Omarchy itself
 if [[ -d /omarchy ]]; then
   cp -rp /omarchy "$build_cache_dir/airootfs/root/omarchy"
@@ -37,13 +41,17 @@ else
   git clone -b $OMARCHY_INSTALLER_REF https://github.com/$OMARCHY_INSTALLER_REPO.git "$build_cache_dir/airootfs/root/omarchy"
 fi
 
-# Make log uploader available in the ISO too
-mkdir -p "$build_cache_dir/airootfs/usr/local/bin/"
-cp "$build_cache_dir/airootfs/root/omarchy/bin/omarchy-upload-log" "$build_cache_dir/airootfs/usr/local/bin/omarchy-upload-log"
+if [[ "$COPY_OMARCHY_ASSETS" == "true" ]]; then
+  # Make log uploader available in the ISO too
+  mkdir -p "$build_cache_dir/airootfs/usr/local/bin/"
+  cp "$build_cache_dir/airootfs/root/omarchy/bin/omarchy-upload-log" "$build_cache_dir/airootfs/usr/local/bin/omarchy-upload-log"
 
-# Copy the Omarchy Plymouth theme to the ISO
-mkdir -p "$build_cache_dir/airootfs/usr/share/plymouth/themes/omarchy"
-cp -r "$build_cache_dir/airootfs/root/omarchy/default/plymouth/"* "$build_cache_dir/airootfs/usr/share/plymouth/themes/omarchy/"
+  # Copy the Omarchy Plymouth theme to the ISO
+  mkdir -p "$build_cache_dir/airootfs/usr/share/plymouth/themes/omarchy"
+  cp -r "$build_cache_dir/airootfs/root/omarchy/default/plymouth/"* "$build_cache_dir/airootfs/usr/share/plymouth/themes/omarchy/"
+else
+  echo "COPY_OMARCHY_ASSETS is false; skipping Omarchy upload helper and Plymouth theme."
+fi
 
 # Download and verify Node.js binary for offline installation
 NODE_DIST_URL="https://nodejs.org/dist/latest"
