@@ -85,6 +85,23 @@ latest_iso=$(\ls -t "$BUILD_RELEASE_PATH"/*.iso | head -n1)
 iso_ref="${latest_iso%.*}-$OMARCHY_INSTALLER_REF.iso"
 mv -f "$latest_iso" "$iso_ref"
 
+# Only run legacy signing/upload helpers when explicitly requested.
+if [[ "${UPLOAD_TO_OMARCHY:-}" == "true" ]]; then
+  LEGACY_BIN_DIR="$BUILD_ROOT/contrib/omarchy-legacy/bin"
+
+  if [[ -x "$LEGACY_BIN_DIR/omarchy-iso-sign" ]]; then
+    "$LEGACY_BIN_DIR/omarchy-iso-sign" "$iso_ref"
+  else
+    echo "UPLOAD_TO_OMARCHY is true but $LEGACY_BIN_DIR/omarchy-iso-sign is missing; skipping signing."
+  fi
+
+  if [[ -x "$LEGACY_BIN_DIR/omarchy-iso-upload" ]]; then
+    "$LEGACY_BIN_DIR/omarchy-iso-upload" "$iso_ref"
+  else
+    echo "UPLOAD_TO_OMARCHY is true but $LEGACY_BIN_DIR/omarchy-iso-upload is missing; skipping upload."
+  fi
+fi
+
 # Offer to boot the new build
 if [[ -z "$NO_BOOT_OFFER" ]]; then
   echo
