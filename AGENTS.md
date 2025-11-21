@@ -1,7 +1,8 @@
 # CollectiveOS ISO Agent Guide
 
 ## Project Overview
-- Builds the CollectiveOS Arch-based installer ISO—a personal fork of Omarchy.
+- This repo (`collective-os-iso`) is a fork of `omacom-io/omarchy-iso`, prepared as the base for CollectiveOS.
+- It currently builds an ISO that still uses the upstream Omarchy installer from `basecamp/omarchy` and relies on the `[omarchy]` pacman repository plus `omarchy-keyring` (intentional until CollectiveOS replacements exist).
 - Uses upstream `archiso` (submodule pinned to v84) with custom `configs/` overlay and builder scripts to generate installable ISOs.
 - Outputs ISOs to `release/`; legacy signing/upload helpers are preserved under `contrib/omarchy-legacy/` but are disabled by default.
 
@@ -19,7 +20,7 @@
 - Host: Arch Linux (scripts use `pacman`, `gum`, `qemu-full`, `edk2-ovmf`, Docker).
 - Ensure Docker is installed and can run privileged containers.
 - Pull submodule: `git submodule update --init --recursive --jobs=8`.
-- Optional env vars for builds: `OMARCHY_INSTALLER_REPO` (default `basecamp/omarchy`), `OMARCHY_INSTALLER_REF` (default `master`).
+- Optional env vars for builds: `OMARCHY_INSTALLER_REPO` (default `basecamp/omarchy`), `OMARCHY_INSTALLER_REF` (default `master`). Defaults deliberately point at the upstream Omarchy installer until CollectiveOS provides its own.
 - For optional uploads: configure 1Password CLI and run `./bin/omarchy-iso-rclone-config` to write `~/.config/rclone/rclone.conf` before calling legacy upload helper.
 
 ## Core Workflows
