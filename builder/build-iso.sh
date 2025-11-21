@@ -201,7 +201,8 @@ done
 # Build AUR packages inside the installer repo so they're available to the ISO build
 if [[ -z "${SKIP_LOCAL_AUR_BUILD:-}" ]]; then
   if [[ -x "$INSTALLER_DEST/scripts/build-local-aur.sh" ]]; then
-    AUR_CARGO_JOBS="${CARGO_BUILD_JOBS:-$(nproc)}"
+    # Keep Rust AUR builds from exhausting RAM: default to 2 jobs unless overridden.
+    AUR_CARGO_JOBS="${CARGO_BUILD_JOBS:-2}"
     AUR_RUSTFLAGS="${RUSTFLAGS:--Ccodegen-units=2}"
     echo "==> Building CollectiveOS AUR packages (CARGO_BUILD_JOBS=$AUR_CARGO_JOBS, RUSTFLAGS=$AUR_RUSTFLAGS)"
 
@@ -231,6 +232,12 @@ cp "$INSTALLER_DEST/bin/collectiveos-upload-log" "$build_cache_dir/airootfs/usr/
 # Copy the CollectiveOS Plymouth theme to the ISO
 mkdir -p "$build_cache_dir/airootfs/usr/share/plymouth/themes/collectiveos"
 cp -r "$INSTALLER_DEST/default/plymouth/"* "$build_cache_dir/airootfs/usr/share/plymouth/themes/collectiveos/"
+
+# Provide Archinstall with an offline pacman configuration during ISO installs
+if [[ -f "$INSTALLER_DEST/default/pacman/pacman-offline.conf" ]]; then
+  mkdir -p "$build_cache_dir/airootfs/etc"
+  cp "$INSTALLER_DEST/default/pacman/pacman-offline.conf" "$build_cache_dir/airootfs/etc/pacman-offline.conf"
+fi
 
 # Download and verify Node.js binary for offline installation
 NODE_DIST_URL="https://nodejs.org/dist/latest"
