@@ -1,7 +1,7 @@
 # CollectiveOS ISO Agent Guide
 
 ## Project Overview
-- Builds the CollectiveOS Arch-based installer ISO—a personal fork of Omarchy. At present it is identical to Omarchy but expected to diverge; keep upstream references in mind when changing defaults.
+- Builds the CollectiveOS Arch-based installer ISO—a personal fork of Omarchy.
 - Uses upstream `archiso` (submodule pinned to v84) with custom `configs/` overlay and builder scripts to generate installable ISOs.
 - Outputs ISOs to `release/`; legacy signing/upload helpers are preserved under `contrib/omarchy-legacy/` but are disabled by default.
 
