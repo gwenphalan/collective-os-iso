@@ -32,5 +32,5 @@ Legacy Omarchy signing/upload tooling is preserved in `contrib/omarchy-legacy/bi
 
 ## Cleanup documentation
 
-- Audit: `docs/audit-report.md`
-- Smoke test results: `docs/smoke-test.md`
+- Audit: `docs/slim-iso/audit-report.md`
+- Smoke test results: `docs/slim-iso/smoke-test.md`

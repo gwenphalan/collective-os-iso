@@ -13,7 +13,7 @@
 - `configs/`: ArchISO profile overlay (pacman configs, boot loaders, profiledef, airootfs scripts including `.automated_script.sh` and `configurator`).
 - `archiso/`: Git submodule of upstream archiso (do not edit unless updating the submodule).
 - `release/`: Build artifacts; `vm-saves/`: persisted QCOW2/OVMF snapshots.
-- `docs/`: Cleanup artifacts such as `docs/audit-report.md` and `docs/smoke-test.md` for the `cleanup/iso-slim` branch.
+- `docs/`: Cleanup artifacts such as `docs/slim-iso/audit-report.md` and `docs/slim-iso/smoke-test.md` for the `cleanup/iso-slim` branch.
 - Predominantly Bash; relies on Arch Linux tooling (pacman, mkarchiso, qemu, gum, rclone, gnupg).
 
 ## Dev Environment Setup
