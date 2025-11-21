@@ -2,15 +2,17 @@
 
 ## Project Overview
 - Builds the CollectiveOS Arch-based installer ISO—a personal fork of Omarchy. At present it is identical to Omarchy but expected to diverge; keep upstream references in mind when changing defaults.
-- Uses upstream `archiso` (submodule pinned to v84) with custom `configs/` overlay and builder scripts to generate release-ready ISOs.
-- Outputs ISOs to `release/`, plus optional signatures and uploads.
+- Uses upstream `archiso` (submodule pinned to v84) with custom `configs/` overlay and builder scripts to generate installable ISOs.
+- Outputs ISOs to `release/`; legacy signing/upload helpers are preserved under `contrib/omarchy-legacy/` but are disabled by default.
 
 ## Repo Layout & Tech Stack
-- `bin/`: Bash entrypoints for building (`omarchy-iso-make`), booting/testing (`omarchy-iso-boot`), VM snapshotting (`omarchy-vm`), signing, uploading, and rclone config.
+- `bin/`: Bash entrypoints for building (`omarchy-iso-make`), booting/testing (`omarchy-iso-boot`), VM snapshotting (`omarchy-vm`), and rclone config helper.
+- `contrib/omarchy-legacy/bin/`: Legacy release/sign/upload helpers retained for reference and opt-in use.
 - `builder/`: `build-iso.sh` run inside the Arch Linux build container; installs build deps, pulls Omarchy/CollectiveOS sources, builds offline repo, and calls `mkarchiso`.
 - `configs/`: ArchISO profile overlay (pacman configs, boot loaders, profiledef, airootfs scripts including `.automated_script.sh` and `configurator`).
 - `archiso/`: Git submodule of upstream archiso (do not edit unless updating the submodule).
 - `release/`: Build artifacts; `vm-saves/`: persisted QCOW2/OVMF snapshots.
+- `docs/`: Cleanup artifacts such as `docs/audit-report.md` and `docs/smoke-test.md` for the `cleanup/iso-slim` branch.
 - Predominantly Bash; relies on Arch Linux tooling (pacman, mkarchiso, qemu, gum, rclone, gnupg).
 
 ## Dev Environment Setup
@@ -18,8 +20,7 @@
 - Ensure Docker is installed and can run privileged containers.
 - Pull submodule: `git submodule update --init --recursive --jobs=8`.
 - Optional env vars for builds: `OMARCHY_INSTALLER_REPO` (default `basecamp/omarchy`), `OMARCHY_INSTALLER_REF` (default `master`).
-- For uploads: configure 1Password CLI and run `./bin/omarchy-iso-rclone-config` to write `~/.config/rclone/rclone.conf`.
-- For signing: import GPG key; gnupg installed automatically by `omarchy-iso-sign` if missing.
+- For optional uploads: configure 1Password CLI and run `./bin/omarchy-iso-rclone-config` to write `~/.config/rclone/rclone.conf` before calling legacy upload helper.
 
 ## Core Workflows
 - Build ISO:  
@@ -34,16 +35,8 @@
   ```  
   Installs `qemu-full` & `edk2-ovmf` if missing, creates `/tmp/omarchy-iso-boot.qcow2` (20G) unless `reuse` is passed, forwards SSH on port 2222.
 - Manage VM snapshots: `./bin/omarchy-vm save|boot|list [name]` uses `vm-saves/` and `/tmp` QCOW/OVMF files.
-- Sign ISO:  
-  ```bash
-  ./bin/omarchy-iso-sign release/omarchy.iso
-  ```  
-  Produces `*.sig` using first available secret key.
-- Upload ISO (+sig if present) to Cloudflare R2:  
-  ```bash
-  ./bin/omarchy-iso-upload release/omarchy.iso
-  ```
-- One-shot release flow: `./bin/omarchy-iso-release <version>` builds master ISO (unless `--no-make`), renames, signs, and uploads.
+- Optional legacy signing/upload (manual/opt-in):  
+  Scripts live in `contrib/omarchy-legacy/bin/`. They are *not* invoked automatically; set `UPLOAD_TO_OMARCHY=true` or call directly if needed.
 - ISO customization at runtime: `configs/airootfs/root/.automated_script.sh` orchestrates color theming, runs `configurator`, feeds archinstall, mounts offline mirror and Node tarball, and hands off to Omarchy installer.
 
 ## Coding Conventions & Architecture Rules

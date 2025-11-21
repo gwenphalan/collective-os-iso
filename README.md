@@ -26,14 +26,11 @@ OMARCHY_INSTALLER_REPO="myuser/omarchy-fork" OMARCHY_INSTALLER_REF="some-feature
 
 Run `./bin/omarchy-iso-boot [release/omarchy.iso]`.
 
-## Signing the ISO
+## Legacy release helpers
 
-Run `./bin/omarchy-iso-sign [gpg-user] [release/omarchy.iso]`.
+Signing and upload helpers now live in `contrib/omarchy-legacy/bin/` and are **not** invoked by default. To sign or upload, call them explicitly or set `UPLOAD_TO_OMARCHY=true` when running `./bin/omarchy-iso-make`.
 
-## Uploading the ISO
+## Cleanup documentation
 
-Run `./bin/omarchy-iso-upload [release/omarchy.iso]`. This requires you've configured rclone (use `rclone config`).
-
-## Full release of the ISO
-
-Run `./bin/omarchy-iso-release` to create, test, sign, and upload the ISO in one flow.
+- Audit: `docs/audit-report.md`
+- Smoke test results: `docs/smoke-test.md`
