@@ -1,0 +1,1 @@
+This cleanup/iso-slim branch focuses solely on removing Omarchy-specific infrastructure while retaining required dependencies.
